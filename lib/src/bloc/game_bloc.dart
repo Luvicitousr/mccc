@@ -47,11 +47,12 @@ class GameStateUpdated extends GameState {
 
 // BLoC
 class GameBloc extends Bloc<GameEvent, GameState> {
-  // ✅ O board agora é 'late' e será injetado pela CandyGame
+  // A referência do tabuleiro é 'late' porque será injetada pela CandyGame.
   late GameBoard board;
 
-  // ✅ Construtor agora é simples
+  // O construtor volta a ser simples.
   GameBloc() : super(const GameInitial()) {
+    // Registra todos os seus handlers de evento
     on<InitializeGame>(_onInitializeGame);
     on<SwapPieces>(_onSwapPieces);
     on<UndoSwap>(_onUndoSwap);
@@ -64,10 +65,10 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   }
 
   void _onInitializeGame(InitializeGame event, Emitter<GameState> emit) {
-    // A injeção de dependência circular não é mais necessária.
-    // board.setBloc(this); 
+    board.setBloc(this);
     emit(GameStateUpdated(board: board, status: GameStatus.idle));
   }
+  
   void _onSelectPiece(SelectPiece event, Emitter<GameState> emit) { print("BLOC: Peça selecionada na posição: (${event.row}, ${event.col})"); }
 
   void _onSwapPieces(SwapPieces event, Emitter<GameState> emit) {

@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'src/game/candy_game.dart';
 import 'src/bloc/game_bloc.dart';
 import 'src/ui/game_board_widget.dart';
+import 'src/engine/board.dart';
 
 void main() {
   runApp(const MyApp());
@@ -25,9 +26,9 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    // 1. Cria o BLoC primeiro
+    // 1. Cria o BLoC primeiro.
     _gameBloc = GameBloc();
-    // 2. Cria o Jogo, injetando o BLoC
+    // 2. Cria o Jogo, injetando o BLoC.
     _game = CandyGame(bloc: _gameBloc);
   }
 

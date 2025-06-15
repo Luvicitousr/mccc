@@ -19,6 +19,7 @@ class CandyGame extends FlameGame with DragCallbacks {
 
   late final GameBoard board;
   StreamSubscription<GameState>? _blocSubscription;
+
   bool _isSwapping = false;
   late int startRow, startCol;
   
@@ -30,30 +31,37 @@ class CandyGame extends FlameGame with DragCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
     
+    // Configura o mundo e a câmera
     camera.world = world;
     camera.viewport = FixedAspectRatioViewport(aspectRatio: 1.0);
     camera.viewfinder.anchor = Anchor.center;
     
     await add(world);
 
+    // Pré-carrega todos os assets ANTES de criar qualquer peça
     await images.loadAll(PetalPiece.petalSprites.values.where((path) => !path.contains('empty')).toList());
     await AudioManager().init();
 
+    // Cria o tabuleiro com o tamanho de peça já calculado
     board = GameBoard(
       gridSize: Vector2.all(kPieceCount.toDouble()),
       pieceSize: pieceSize,
     );
     
-    // Injeta a referência do board no BLoC, que foi recebida via construtor
+    // Injeta a referência do board no BLoC
     bloc.board = board; 
     
+    // Adiciona o tabuleiro ao mundo e espera ele carregar
     await world.add(board);
     
+    // Centraliza a câmera no tabuleiro e define o zoom
     camera.viewfinder.position = board.size / 2;
     camera.viewfinder.zoom = kVirtualResolution / camera.viewport.size.x;
     
+    // Manda o tabuleiro se popular com as peças
     await board.populateBoard();
 
+    // Adiciona o overlay da UI e começa a ouvir o BLoC
     overlays.add(GameBoardWidget.overlayKey);
     _blocSubscription = bloc.stream.listen(_onGameStateChanged);
     bloc.add(InitializeGame());
@@ -76,9 +84,12 @@ class CandyGame extends FlameGame with DragCallbacks {
     if (bloc.state.status != GameStatus.idle) return;
     super.onDragStart(event);
     _isSwapping = false;
+    
     final touchPositionInWorld = camera.globalToLocal(event.canvasPosition);
+    
     startRow = (touchPositionInWorld.y / pieceSize).floor();
     startCol = (touchPositionInWorld.x / pieceSize).floor();
+    
     if (board.isValidPosition(startRow, startCol)) {
         bloc.add(SelectPiece(startRow, startCol));
     }
@@ -88,6 +99,7 @@ class CandyGame extends FlameGame with DragCallbacks {
   void onDragUpdate(DragUpdateEvent event) {
     if (bloc.state.status != GameStatus.idle) return;
     if (_isSwapping) return;
+
     super.onDragUpdate(event);
     final delta = event.localDelta;
     const double swipeThreshold = 10.0;
