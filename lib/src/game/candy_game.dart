@@ -1,130 +1,137 @@
-// lib/src/game/candy_game.dart
 import 'dart:async';
-import 'package:flame/camera.dart';
+import 'dart:math';
 import 'package:flame/components.dart';
-import 'package:flame/events.dart';
 import 'package:flame/game.dart';
-import '../audio/audio_manager.dart';
-import '../bloc/game_bloc.dart';
-import '../engine/board.dart';
+import 'package:flame/events.dart';
+import 'package:flutter/material.dart';
+//import '../actions/swap_pieces_action.dart';
+import '../engine/action_manager.dart';
 import '../engine/petal_piece.dart';
-import '../ui/game_board_widget.dart';
 
-const double kVirtualResolution = 640;
-const int kPieceCount = 8;
+const int kPieceCountWidth = 8;
+const int kPieceCountHeight = 8;
 
 class CandyGame extends FlameGame with DragCallbacks {
-  final GameBloc bloc;
-  CandyGame({required this.bloc});
+  late final List<Aabb2> pieceSlots;
+  late final List<PetalPiece> pieces;
+  int _lastProcessedIndex = -1;
+  late final ActionManager actionManager;
 
-  late final GameBoard board;
-  StreamSubscription<GameState>? _blocSubscription;
+  @override
+  void update(double dt) {
+    super.update(dt);
+    actionManager.performStuff();
+  }
 
-  bool _isSwapping = false;
-  late int startRow, startCol;
-  
-  double get pieceSize => kVirtualResolution / kPieceCount;
+  @override
+  Color backgroundColor() => const Color.fromARGB(255, 255, 0, 0);
 
-  final World world = World();
-  
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    
-    // Configura o mundo e a câmera
-    camera.world = world;
-    camera.viewport = FixedAspectRatioViewport(aspectRatio: 1.0);
-    camera.viewfinder.anchor = Anchor.center;
-    
-    await add(world);
+    actionManager = ActionManager();
 
-    // Pré-carrega todos os assets ANTES de criar qualquer peça
-    await images.loadAll(PetalPiece.petalSprites.values.where((path) => !path.contains('empty')).toList());
-    await AudioManager().init();
+    // ✅ 1. Calcula o tamanho de cada peça
+    final pieceSize = size.x / kPieceCountWidth;
 
-    // Cria o tabuleiro com o tamanho de peça já calculado
-    board = GameBoard(
-      gridSize: Vector2.all(kPieceCount.toDouble()),
-      pieceSize: pieceSize,
+    // ✅ 2. Calcula o tamanho total do tabuleiro
+    final boardWidth = kPieceCountWidth * pieceSize;
+    final boardHeight = kPieceCountHeight * pieceSize;
+
+    // ✅ 3. Calcula o deslocamento para centralizar
+    final offsetX = (size.x - boardWidth) / 2;
+    final offsetY = (size.y - boardHeight) / 2;
+
+    // ✅ 4. Gera slots com offset de centralização
+    pieceSlots = List.generate(
+      kPieceCountWidth * kPieceCountHeight,
+      (index) {
+        final i = index % kPieceCountWidth;
+        final j = (index / kPieceCountWidth).floor();
+        final x = i * pieceSize + offsetX;
+        final y = j * pieceSize + offsetY;
+        return Aabb2.minMax(Vector2(x, y), Vector2(x + pieceSize, y + pieceSize));
+      },
     );
-    
-    // Injeta a referência do board no BLoC
-    bloc.board = board; 
-    
-    // Adiciona o tabuleiro ao mundo e espera ele carregar
-    await world.add(board);
-    
-    // Centraliza a câmera no tabuleiro e define o zoom
-    camera.viewfinder.position = board.size / 2;
-    camera.viewfinder.zoom = kVirtualResolution / camera.viewport.size.x;
-    
-    // Manda o tabuleiro se popular com as peças
-    await board.populateBoard();
 
-    // Adiciona o overlay da UI e começa a ouvir o BLoC
-    overlays.add(GameBoardWidget.overlayKey);
-    _blocSubscription = bloc.stream.listen(_onGameStateChanged);
-    bloc.add(InitializeGame());
+    // ✅ 5. Cria peças centralizadas
+    pieces = List.generate(
+      kPieceCountWidth * kPieceCountHeight,
+      (index) {
+        final i = index % kPieceCountWidth;
+        final j = (index / kPieceCountWidth).floor();
+        final position = Vector2(i * pieceSize + offsetX, j * pieceSize + offsetY);
+        return PetalPiece(
+          type: _randomPieceType(),
+          position: position,
+          size: Vector2.all(pieceSize),
+        );
+      },
+    );
+
+    await addAll(pieces);
   }
 
-  void _onGameStateChanged(GameState state) {
-    if (state is GameStateUpdated && state.animation != null) {
-      world.add(state.animation!);
+  void _play(Vector2 position) {
+    if (!size.toRect().contains(position.toOffset())) return;
+    final index = _getIndexFromPosition(position);
+    if (index != -1) {
+      //actionManager.push(ActionLog("Ação de jogar IMEDIATA no índice: $index"));
+      print("Ação de jogar IMEDIATA no índice: $index");
     }
   }
 
-  void handleSwap(int row1, int col1, int row2, int col2) {
-    if (bloc.state.status != GameStatus.idle) return;
-    if (!board.isValidPosition(row2, col2)) return;
-    bloc.add(SwapPieces(row1, col1, row2, col2));
+  int _getIndexFromPosition(Vector2 position) {
+    final pieceSize = size.x / kPieceCountWidth;
+    final offsetX = (size.x - kPieceCountWidth * pieceSize) / 2;
+    final offsetY = (size.y - kPieceCountHeight * pieceSize) / 2;
+
+    // ✅ 6. Ajusta posição para compensar o offset de centralização
+    final adjustedX = position.x - offsetX;
+    final adjustedY = position.y - offsetY;
+
+    final i = (adjustedX / pieceSize).floor();
+    final j = (adjustedY / pieceSize).floor();
+
+    if (i >= 0 && i < kPieceCountWidth && j >= 0 && j < kPieceCountHeight) {
+      return j * kPieceCountWidth + i;
+    }
+    return -1;
   }
-  
+
   @override
   void onDragStart(DragStartEvent event) {
-    if (bloc.state.status != GameStatus.idle) return;
     super.onDragStart(event);
-    _isSwapping = false;
-    
-    final touchPositionInWorld = camera.globalToLocal(event.canvasPosition);
-    
-    startRow = (touchPositionInWorld.y / pieceSize).floor();
-    startCol = (touchPositionInWorld.x / pieceSize).floor();
-    
-    if (board.isValidPosition(startRow, startCol)) {
-        bloc.add(SelectPiece(startRow, startCol));
-    }
+    if (actionManager.isRunning()) return;
+    final index = _getIndexFromPosition(event.localPosition);
+    if (index != -1) _lastProcessedIndex = index;
   }
 
   @override
   void onDragUpdate(DragUpdateEvent event) {
-    if (bloc.state.status != GameStatus.idle) return;
-    if (_isSwapping) return;
-
     super.onDragUpdate(event);
-    final delta = event.localDelta;
-    const double swipeThreshold = 10.0;
-    int endRow = startRow;
-    int endCol = startCol;
-
-    if (delta.x.abs() > delta.y.abs()) {
-      if (delta.x > swipeThreshold) { endCol++; } 
-      else if (delta.x < -swipeThreshold) { endCol--; }
-    } else {
-      if (delta.y > swipeThreshold) { endRow++; } 
-      else if (delta.y < -swipeThreshold) { endRow--; }
-    }
-
-    if (endRow != startRow || endCol != startCol) {
-      _isSwapping = true;
-      if (board.isValidPosition(endRow, endCol)) {
-        handleSwap(startRow, startCol, endRow, endCol);
-      }
+    if (actionManager.isRunning()) return;
+    final currentIndex = _getIndexFromPosition(event.localEndPosition);
+    if (currentIndex != -1 && currentIndex != _lastProcessedIndex) {
+      _play(event.localEndPosition);
     }
   }
-  
+
   @override
-  void onRemove() {
-    _blocSubscription?.cancel();
-    super.onRemove();
+  void onDragEnd(DragEndEvent event) {
+    super.onDragEnd(event);
+    _lastProcessedIndex = -1;
+  }
+
+  @override
+  void onDragCancel(DragCancelEvent event) {
+    super.onDragCancel(event);
+    _lastProcessedIndex = -1;
   }
 }
+
+PetalType _randomPieceType() {
+    final nonSpecialTypes =
+        PetalType.values; // Adicione filtro se tiver peças especiais
+    return nonSpecialTypes[Random().nextInt(nonSpecialTypes.length)];
+  }
