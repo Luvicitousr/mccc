@@ -9,7 +9,6 @@ import 'package:flame/components.dart';
 class RemovePiecesAction extends Action {
   /// O conjunto de peças a serem removidas.
   final Set<PetalPiece> piecesToRemove;
-  final void Function() onComplete; // <-- NOVO: Função de callback
 
   /// A duração da animação em milissegundos.
   final int durationMs;
@@ -17,9 +16,11 @@ class RemovePiecesAction extends Action {
   late final int _startTime;
   late final int _endTime;
 
-  RemovePiecesAction(
-    this.piecesToRemove, {
-    required this.onComplete, // <-- NOVO: Parâmetro obrigatório
+  // ✅ CORREÇÃO AQUI:
+  // Envolvemos os parâmetros do construtor em chaves `{}` para torná-los
+  // nomeados. `required` garante que `pieces` seja sempre fornecido.
+  RemovePiecesAction({
+    required this.piecesToRemove,
     this.durationMs = 200,
   });
 
@@ -36,9 +37,9 @@ class RemovePiecesAction extends Action {
     if (currentTime >= _endTime) {
       // Animação terminada: remove os componentes do jogo.
       for (final piece in piecesToRemove) {
-        piece.removeFromParent();
+        piece.opacity = 0;
+        piece.scale = Vector2.zero();
       }
-      onComplete(); // <-- NOVO: Executa a lógica de atualização do tabuleiro
       
       terminate(); // <-- AVISA QUE A AÇÃO TERMINOU
       return;
