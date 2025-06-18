@@ -11,6 +11,7 @@ import '../actions/remove_pieces_action.dart';
 import '../actions/callback_action.dart';
 import '../engine/action_manager.dart';
 import '../engine/petal_piece.dart';
+import 'package:flutter/foundation.dart'; // Necessário para ValueNotifier
 
 const int kPieceCountWidth = 8;
 const int kPieceCountHeight = 8;
@@ -25,11 +26,56 @@ class CandyGame extends FlameGame with DragCallbacks {
   void update(double dt) {
     super.update(dt);
     actionManager.performStuff();
+
+    // ✅ 3. LÓGICA DE FIM DE JOGO MOVIDA PARA CÁ.
+    // Verifica se os movimentos acabaram, se não há ações rodando
+    // e se o jogo já não terminou.
+    if (movesLeft.value == 0 && !actionManager.isRunning() && !_isGameOver) {
+      // Marca que o jogo terminou para não entrar aqui de novo.
+      _isGameOver = true;
+
+      // Pausa a lógica do jogo e exibe a tela de game over.
+      pauseEngine();
+      overlays.add('gameOverPanel');
+    }
+
+    // ✅ 4. ADICIONE A LÓGICA DE FIM DE JOGO (VITÓRIA).
+    final allObjectivesMet = objectives.value.values.every(
+      (count) => count <= 0,
+    );
+    if (allObjectivesMet && !_isGameWon && !_isGameOver) {
+      _isGameWon = true;
+      pauseEngine();
+      overlays.add('gameWonPanel');
+    }
   }
+
+  // ✅ 1. ADICIONE O NOTIFIER PARA OS MOVIMENTOS E UM CALLBACK DE GAME OVER.
+  /// Notificador que armazena os movimentos restantes. A UI vai escutar isso.
+  late final ValueNotifier<int> movesLeft;
+
+  // ✅ 1. Adicione uma flag para controlar o estado de "Game Over".
+  bool _isGameOver = false;
+
+  // ✅ 1. ADICIONE AS VARIÁVEIS PARA OS OBJETIVOS.
+  late final ValueNotifier<Map<PetalType, int>> objectives;
+  bool _isGameWon = false;
+
+  CandyGame();
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    // ✅ 2. DEFINA OS OBJETIVOS PARA O NÍVEL.
+    objectives = ValueNotifier({PetalType.cherry: 10, PetalType.maple: 10});
+
+    // ✅ 3. INICIALIZE OS MOVIMENTOS E ATIVE O OVERLAY.
+    movesLeft = ValueNotifier(30); // O jogador começa com 30 movimentos.
+
+    // ✅ 3. ATIVE O NOVO OVERLAY DO PAINEL DE OBJETIVOS.
+    overlays.add('movesPanel');
+    overlays.add('objectivesPanel');
 
     // ✅ 2. ADICIONE ESTE BLOCO DE CÓDIGO NO INÍCIO DO onLOAD.
     // Carrega e adiciona o componente de imagem de fundo.
@@ -39,7 +85,8 @@ class CandyGame extends FlameGame with DragCallbacks {
         sprite: background,
         size: size, // Faz a imagem ter o mesmo tamanho da tela.
         position: Vector2.zero(), // Posiciona no canto superior esquerdo.
-        priority: -1, // Prioridade negativa para garantir que fique atrás de tudo.
+        priority:
+            -1, // Prioridade negativa para garantir que fique atrás de tudo.
       ),
     );
     actionManager = ActionManager();
@@ -235,9 +282,26 @@ class CandyGame extends FlameGame with DragCallbacks {
         // 2. Após a animação, executa a lógica de cascata e verifica novas combinações.
         .push(
           FunctionAction(() {
+            // ✅ 5. DECREMENTE OS OBJETIVOS QUANDO AS PEÇAS SÃO REMOVIDAS.
+            // Cria uma cópia do mapa atual de objetivos.
+            final currentObjectives = Map<PetalType, int>.from(
+              objectives.value,
+            );
+            bool objectivesUpdated = false;
             // Marca as peças como 'empty' logicamente.
             for (final piece in matchedPieces) {
+              // Se a peça combinada faz parte dos objetivos...
+              if (currentObjectives.containsKey(piece.type)) {
+                // Decrementa o contador.
+                currentObjectives[piece.type] =
+                    (currentObjectives[piece.type]! - 1).clamp(0, 999);
+                objectivesUpdated = true;
+              }
               piece.changeType(PetalType.empty);
+            }
+
+            if (objectivesUpdated) {
+              objectives.value = currentObjectives;
             }
 
             // Calcula as animações de gravidade e preenchimento.
@@ -367,6 +431,8 @@ class CandyGame extends FlameGame with DragCallbacks {
 
     // CASO A: COMBINAÇÃO VÁLIDA ENCONTRADA
     if (allFoundPieces.isNotEmpty) {
+      // ✅ 4. DECREMENTE O NÚMERO DE MOVIMENTOS.
+      movesLeft.value--;
       // Inicia a animação de troca.
       actionManager
           .push(

@@ -4,18 +4,17 @@ import 'package:flame/game.dart'; // <-- Adicione esta linha.
 import 'package:flutter/material.dart';
 
 class HomePage extends StatelessWidget {
-
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Imagem de fundo
+          // ✅ MUDANÇA AQUI: Voltamos a usar um Image.asset simples.
+          // Certifique-se de que o caminho e o nome da imagem estão corretos.
           Image.asset(
-            'assets/images/home_page.gif', // Reutilizando a imagem de fundo
-            fit: BoxFit.cover,
+            'assets/images/home_background.jpg',
+            fit: BoxFit.cover, // Garante que a imagem cubra toda a tela.
           ),
           // 2. Conteúdo centralizado
           Center(
@@ -46,7 +45,10 @@ class HomePage extends StatelessWidget {
                     Navigator.of(context).pushNamed('/play');
                   },
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 20,
+                    ),
                     textStyle: const TextStyle(fontSize: 24),
                   ),
                   child: const Text('Jogar'),
