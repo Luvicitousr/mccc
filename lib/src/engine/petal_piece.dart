@@ -6,6 +6,7 @@ enum PetalType {
   cherry, plum, maple, lily, orchid, peony,
   // ✅ 1. Adiciona um tipo para representar um espaço vazio.
   empty,
+  wall,  // ✅ ADICIONA O NOVO TIPO DE OBSTÁCULO.
 }
 
 class PetalPiece extends SpriteComponent {

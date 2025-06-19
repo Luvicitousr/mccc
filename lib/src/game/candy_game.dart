@@ -12,9 +12,7 @@ import '../actions/callback_action.dart';
 import '../engine/action_manager.dart';
 import '../engine/petal_piece.dart';
 import 'package:flutter/foundation.dart'; // Necessário para ValueNotifier
-
-const int kPieceCountWidth = 8;
-const int kPieceCountHeight = 8;
+import '../engine/level_definition.dart'; // Importa a nossa nova classe
 
 class CandyGame extends FlameGame with DragCallbacks {
   late final List<Aabb2> pieceSlots;
@@ -61,17 +59,19 @@ class CandyGame extends FlameGame with DragCallbacks {
   late final ValueNotifier<Map<PetalType, int>> objectives;
   bool _isGameWon = false;
 
-  CandyGame();
+  // ✅ 1. GUARDA A DEFINIÇÃO DO NÍVEL ATUAL.
+  final LevelDefinition level;
+
+  // ✅ 2. O CONSTRUTOR AGORA RECEBE UM NÍVEL.
+  CandyGame({required this.level});
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // ✅ 2. DEFINA OS OBJETIVOS PARA O NÍVEL.
-    objectives = ValueNotifier({PetalType.cherry: 10, PetalType.maple: 10});
-
-    // ✅ 3. INICIALIZE OS MOVIMENTOS E ATIVE O OVERLAY.
-    movesLeft = ValueNotifier(30); // O jogador começa com 30 movimentos.
+    // ✅ 3. INICIALIZA TUDO A PARTIR DO OBJETO 'level'.
+    objectives = ValueNotifier(Map<PetalType, int>.from(level.objectives));
+    movesLeft = ValueNotifier(level.moves);
 
     // ✅ 3. ATIVE O NOVO OVERLAY DO PAINEL DE OBJETIVOS.
     overlays.add('movesPanel');
@@ -92,20 +92,20 @@ class CandyGame extends FlameGame with DragCallbacks {
     actionManager = ActionManager();
 
     // ✅ 1. Calcula o tamanho de cada peça
-    final pieceSize = size.x / kPieceCountWidth;
+    final pieceSize = size.x / level.width;
 
     // ✅ 2. Calcula o tamanho total do tabuleiro
-    final boardWidth = kPieceCountWidth * pieceSize;
-    final boardHeight = kPieceCountHeight * pieceSize;
+    final boardWidth = level.width * pieceSize;
+    final boardHeight = level.height * pieceSize;
 
     // ✅ 3. Calcula o deslocamento para centralizar
     final offsetX = (size.x - boardWidth) / 2;
     final offsetY = (size.y - boardHeight) / 2;
 
     // ✅ 4. Gera slots com offset de centralização
-    pieceSlots = List.generate(kPieceCountWidth * kPieceCountHeight, (index) {
-      final i = index % kPieceCountWidth;
-      final j = (index / kPieceCountWidth).floor();
+    pieceSlots = List.generate(level.width * level.height, (index) {
+      final i = index % level.width;
+      final j = (index / level.width).floor();
       final x = i * pieceSize + offsetX;
       final y = j * pieceSize + offsetY;
       return Aabb2.minMax(Vector2(x, y), Vector2(x + pieceSize, y + pieceSize));
@@ -114,44 +114,62 @@ class CandyGame extends FlameGame with DragCallbacks {
     // --- LÓGICA DE GERAÇÃO MODIFICADA ---
     // 5. Gera peças garantindo que não haja combinações iniciais
     final List<PetalPiece> generatedPieces = [];
-    for (int j = 0; j < kPieceCountHeight; j++) {
-      for (int i = 0; i < kPieceCountWidth; i++) {
-        PetalType newType;
-        bool isMatch;
-
-        do {
-          isMatch = false;
-          newType = _randomPieceType(); // Gera um tipo aleatório
-
-          // Verifica combinação horizontal (com as 2 peças à esquerda)
-          if (i >= 2) {
-            final piece1 = generatedPieces[j * kPieceCountWidth + (i - 1)];
-            final piece2 = generatedPieces[j * kPieceCountWidth + (i - 2)];
-            if (piece1.type == newType && piece2.type == newType) {
-              isMatch = true;
-            }
-          }
-
-          // Verifica combinação vertical (com as 2 peças acima)
-          if (j >= 2) {
-            final piece1 = generatedPieces[(j - 1) * kPieceCountWidth + i];
-            final piece2 = generatedPieces[(j - 2) * kPieceCountWidth + i];
-            if (piece1.type == newType && piece2.type == newType) {
-              isMatch = true;
-            }
-          }
-        } while (isMatch);
-
-        // Posição da nova peça
+    for (int j = 0; j < level.height; j++) {
+      for (int i = 0; i < level.width; i++) {
+        final index = j * level.width + i;
         final position = Vector2(
           i * pieceSize + offsetX,
           j * pieceSize + offsetY,
         );
 
-        // Adiciona a peça válida à lista
+        PetalType pieceType;
+
+        // Verifica o layout do nível para decidir o que criar
+        if (level.layout[index] == 0) {
+          // Se for 0 no layout, é um buraco. Criamos uma peça "vazia".
+          pieceType = PetalType.wall;
+        } else {
+          // Se for uma célula normal, gera uma peça aleatória sem combinação.
+          // ESTA É A SUA LÓGICA, AGORA CORRIGIDA:
+          bool isMatch;
+          do {
+            isMatch = false;
+            pieceType = _randomPieceType(); // Gera um tipo aleatório
+
+            // Verifica combinação horizontal (com as 2 peças à esquerda)
+            if (i >= 2) {
+              // Garante que estamos checando células que não são buracos
+              if (level.layout[index - 1] == 1 &&
+                  level.layout[index - 2] == 1) {
+                // ✅ USA level.width em vez de kPieceCountWidth
+                final piece1 = generatedPieces[j * level.width + (i - 1)];
+                final piece2 = generatedPieces[j * level.width + (i - 2)];
+                if (piece1.type == pieceType && piece2.type == pieceType) {
+                  isMatch = true;
+                }
+              }
+            }
+
+            // Verifica combinação vertical (com as 2 peças acima)
+            if (j >= 2) {
+              // Garante que estamos checando células que não são buracos
+              if (level.layout[index - level.width] == 1 &&
+                  level.layout[index - (level.width * 2)] == 1) {
+                // ✅ USA level.width em vez de kPieceCountWidth
+                final piece1 = generatedPieces[(j - 1) * level.width + i];
+                final piece2 = generatedPieces[(j - 2) * level.width + i];
+                if (piece1.type == pieceType && piece2.type == pieceType) {
+                  isMatch = true;
+                }
+              }
+            }
+          } while (isMatch);
+        }
+
+        // Adiciona a peça (normal ou vazia) à lista.
         generatedPieces.add(
           PetalPiece(
-            type: newType,
+            type: pieceType,
             position: position,
             size: Vector2.all(pieceSize),
           ),
@@ -165,10 +183,10 @@ class CandyGame extends FlameGame with DragCallbacks {
 
   // Add this new helper method
   PetalPiece? pieceAt(int i, int j) {
-    if (i < 0 || i >= kPieceCountWidth || j < 0 || j >= kPieceCountHeight) {
+    if (i < 0 || i >= level.width || j < 0 || j >= level.height) {
       return null;
     }
-    final index = j * kPieceCountWidth + i;
+    final index = j * level.width + i;
     return pieces[index];
   }
 
@@ -190,8 +208,8 @@ class CandyGame extends FlameGame with DragCallbacks {
     while (piecesToProcess.isNotEmpty) {
       final currentPiece = piecesToProcess.removeFirst();
       final index = pieces.indexOf(currentPiece);
-      final i = index % kPieceCountWidth;
-      final j = (index / kPieceCountWidth).floor();
+      final i = index % level.width;
+      final j = (index / level.width).floor();
 
       // Verifique se esta peça também forma novas linhas
       final Set<PetalPiece> foundLines = _findLinesAt(i, j);
@@ -213,6 +231,13 @@ class CandyGame extends FlameGame with DragCallbacks {
     if (startPiece == null) {
       return {};
     }
+
+    // ✅ NOVA VERIFICAÇÃO: Peças não jogáveis não podem formar combinações.
+    // Se a peça inicial for um muro ou um espaço vazio, ela não pode iniciar uma combinação.
+    if (startPiece.type == PetalType.wall ||
+        startPiece.type == PetalType.empty) {
+      return {}; // Retorna um conjunto vazio imediatamente.
+    }
     final currentType = startPiece.type;
     final Set<PetalPiece> foundPieces = {};
 
@@ -227,7 +252,7 @@ class CandyGame extends FlameGame with DragCallbacks {
         break;
       }
     }
-    for (int x = i + 1; x < kPieceCountWidth; x++) {
+    for (int x = i + 1; x < level.width; x++) {
       // Direita
       final p = pieceAt(x, j);
       if (p?.type == currentType) {
@@ -248,7 +273,7 @@ class CandyGame extends FlameGame with DragCallbacks {
         break;
       }
     }
-    for (int y = j + 1; y < kPieceCountHeight; y++) {
+    for (int y = j + 1; y < level.height; y++) {
       // Baixo
       final p = pieceAt(i, y);
       if (p?.type == currentType) {
@@ -268,6 +293,38 @@ class CandyGame extends FlameGame with DragCallbacks {
     return foundPieces;
   }
 
+  // DENTRO DA CLASSE CandyGame
+
+  /// Encontra todas as peças do tipo 'wall' que são adjacentes a um conjunto de peças.
+  Set<PetalPiece> _findAdjacentWalls(Set<PetalPiece> pieceSet) {
+    final wallsToClear = <PetalPiece>{};
+
+    for (final piece in pieceSet) {
+      final index = pieces.indexOf(piece);
+      final i = index % level.width;
+      final j = (index / level.width).floor();
+
+      // Lista de coordenadas vizinhas (cima, baixo, esquerda, direita)
+      final neighborsCoords = [
+        Point(i, j - 1), // Cima
+        Point(i, j + 1), // Baixo
+        Point(i - 1, j), // Esquerda
+        Point(i + 1, j), // Direita
+      ];
+
+      for (final coord in neighborsCoords) {
+        final neighborPiece = pieceAt(coord.x.toInt(), coord.y.toInt());
+        // Se o vizinho existe e é um buraco, adiciona à lista para limpeza.
+        // ✅ Se o vizinho existe e é um MURO, adiciona à lista para limpeza.
+        if (neighborPiece != null && neighborPiece.type == PetalType.wall) {
+          wallsToClear.add(neighborPiece);
+        }
+      }
+    }
+
+    return wallsToClear;
+  }
+
   // ✅ NOVO: Orquestrador principal da reação em cadeia.
   /// Inicia o processo de remoção e cascata para um conjunto de peças combinadas.
   void _processMatches(Set<PetalPiece> matchedPieces) {
@@ -276,9 +333,15 @@ class CandyGame extends FlameGame with DragCallbacks {
       return;
     }
 
+    // ✅ 2. ENCONTRA OS OBSTÁCULOS ADJACENTES ÀS PEÇAS COMBINADAS.
+    final wallsToClear = _findAdjacentWalls(matchedPieces);
+
+    // ✅ 3. COMBINA OS DOIS CONJUNTOS PARA A ANIMAÇÃO DE REMOÇÃO.
+    final allPiecesToAnimate = {...matchedPieces, ...wallsToClear};
+
     actionManager
         // 1. Anima o desaparecimento das peças da combinação atual.
-        .push(RemovePiecesAction(piecesToRemove: matchedPieces))
+        .push(RemovePiecesAction(piecesToRemove: allPiecesToAnimate))
         // 2. Após a animação, executa a lógica de cascata e verifica novas combinações.
         .push(
           FunctionAction(() {
@@ -298,6 +361,13 @@ class CandyGame extends FlameGame with DragCallbacks {
                 objectivesUpdated = true;
               }
               piece.changeType(PetalType.empty);
+            }
+
+            // ✅ --- Parte 2: NOVA LÓGICA para os muros limpos ---
+            // Transforma os muros que foram "quebrados" em espaços vazios também.
+            // Isso permite que a cascata preencha seus lugares.
+            for (final wall in wallsToClear) {
+              wall.changeType(PetalType.empty);
             }
 
             if (objectivesUpdated) {
@@ -327,55 +397,71 @@ class CandyGame extends FlameGame with DragCallbacks {
         );
   }
 
-  // ✅ NOVO: Lógica de gravidade e preenchimento.
-  /// Aplica a gravidade, preenche o topo e retorna uma ação de animação (`SwapPiecesAction`)
-  /// com todos os movimentos necessários.
+  // DENTRO DA CLASSE CandyGame
+
+  /// Aplica a gravidade e preenche o topo usando uma lógica de duas fases mais robusta.
   SwapPiecesAction _cascadeAndRefill() {
-    final pieceSize = size.x / kPieceCountWidth;
+    final pieceSize = size.x / level.width;
     final Map<PetalPiece, Vector2> moves = {};
 
-    // --- 1. Lógica de Gravidade (Peças caindo) ---
-    for (int i = 0; i < kPieceCountWidth; i++) {
-      int emptySlots = 0;
-      // Itera a coluna de baixo para cima.
-      for (int j = kPieceCountHeight - 1; j >= 0; j--) {
+    // --- FASE 1: GRAVIDADE (Apenas peças existentes caem) ---
+    // Itera através de cada coluna.
+    for (int i = 0; i < level.width; i++) {
+      // Para cada coluna, começamos a busca de baixo para cima.
+      // 'lowestEmptyRow' vai guardar a posição mais baixa para onde uma peça pode cair.
+      int lowestEmptyRow = -1;
+
+      for (int j = level.height - 1; j >= 0; j--) {
         final piece = pieceAt(i, j)!;
+
         if (piece.type == PetalType.empty) {
-          emptySlots++;
-        } else if (emptySlots > 0) {
-          // ✅ LÓGICA CORRIGIDA: Realiza uma troca de posições na lista `pieces`.
-          final currentIndex = j * kPieceCountWidth + i;
-          final targetIndex = (j + emptySlots) * kPieceCountWidth + i;
+          // Se encontramos um espaço vazio e ainda não tínhamos um "alvo",
+          // marcamos esta linha como o alvo de queda mais baixo.
+          if (lowestEmptyRow == -1) {
+            lowestEmptyRow = j;
+          }
+        } else if (piece.type == PetalType.wall) {
+          // Se encontramos um muro, ele é um "chão". Resetamos nosso alvo de queda.
+          lowestEmptyRow = -1;
+        } else {
+          // Se encontramos uma peça jogável e existe um alvo de queda abaixo dela...
+          if (lowestEmptyRow != -1) {
+            // Esta peça deve cair!
+            final pieceToMove = piece;
+            final targetIndex = lowestEmptyRow * level.width + i;
 
-          // A peça que vai se mover é a que está na posição atual.
-          final pieceToMove = pieces[currentIndex];
+            // Troca a peça de lugar na lista lógica.
+            pieces[j * level.width + i] = pieces[targetIndex];
+            pieces[targetIndex] = pieceToMove;
 
-          // Troca a peça atual com a peça do destino (que é uma peça vazia).
-          pieces[currentIndex] = pieces[targetIndex];
-          pieces[targetIndex] = pieceToMove;
+            // Registra a animação de movimento.
+            moves[pieceToMove] = pieceSlots[targetIndex].min.clone();
 
-          // Adiciona o movimento da peça que caiu para a animação.
-          moves[piece] = pieceSlots[targetIndex].min.clone();
+            // O alvo de queda agora sobe uma linha.
+            lowestEmptyRow--;
+          }
         }
       }
     }
 
-    // --- 2. Lógica de Preenchimento (Novas peças do topo) ---
-    for (int i = 0; i < kPieceCountWidth; i++) {
-      for (int j = kPieceCountHeight - 1; j >= 0; j--) {
+    // --- FASE 2: PREENCHIMENTO (Apenas novas peças do topo) ---
+    // Após a gravidade ter sido aplicada, qualquer espaço vazio restante
+    // deve estar no topo das colunas.
+    for (int i = 0; i < level.width; i++) {
+      for (int j = level.height - 1; j >= 0; j--) {
         final piece = pieceAt(i, j)!;
         if (piece.type == PetalType.empty) {
-          // Posição inicial da animação (acima da tela).
-          final slot = pieceSlots[j * kPieceCountWidth + i];
-          piece.position = Vector2(slot.min.x, -pieceSize);
+          final slot = pieceSlots[j * level.width + i];
 
-          // Muda o tipo para uma nova peça aleatória.
+          // Reutiliza o objeto da peça, mas muda seu tipo para um aleatório.
           piece.changeType(_randomPieceType());
-          // Garante que a peça está visível para a animação.
+
+          // Define a posição inicial da animação (acima da tela).
+          piece.position = Vector2(slot.min.x, -pieceSize);
           piece.opacity = 1.0;
           piece.scale = Vector2.all(1.0);
 
-          // Adiciona o movimento para a animação (cair na posição final).
+          // Registra a animação de queda para esta nova peça.
           moves[piece] = slot.min.clone();
         }
       }
@@ -390,8 +476,8 @@ class CandyGame extends FlameGame with DragCallbacks {
   /// que fazem parte de alguma combinação.
   Set<PetalPiece> _findAllMatchesOnBoard() {
     final allMatches = <PetalPiece>{};
-    for (int j = 0; j < kPieceCountHeight; j++) {
-      for (int i = 0; i < kPieceCountWidth; i++) {
+    for (int j = 0; j < level.height; j++) {
+      for (int i = 0; i < level.width; i++) {
         // Usa a função já existente para encontrar linhas a partir de um ponto.
         // O `addAll` evita duplicatas pois é um Set.
         allMatches.addAll(_findLinesAt(i, j));
@@ -403,12 +489,17 @@ class CandyGame extends FlameGame with DragCallbacks {
   // ✅ MODIFICADO: O método _play agora apenas inicia o processo.
   /// Orquestra a troca inicial e inicia a primeira verificação de combinação.
   void _play(int fromIndex, int toIndex) {
+    // ✅ 1. ADICIONE ESTA VERIFICAÇÃO NO INÍCIO DO MÉTODO.
+    final fromPiece = pieces[fromIndex];
+    final toPiece = pieces[toIndex];
+
+    // Se a peça de origem ou de destino for um buraco, não faz nada.
+    if (fromPiece.type == PetalType.wall || toPiece.type == PetalType.wall) {
+      return;
+    }
     if (actionManager.isRunning()) {
       return;
     }
-
-    final fromPiece = pieces[fromIndex];
-    final toPiece = pieces[toIndex];
 
     // Troca lógica temporária para verificação.
     final temp = pieces[fromIndex];
@@ -416,10 +507,10 @@ class CandyGame extends FlameGame with DragCallbacks {
     pieces[toIndex] = temp;
 
     // Verifica se a troca resultou em alguma combinação.
-    final fromI = fromIndex % kPieceCountWidth;
-    final fromJ = (fromIndex / kPieceCountWidth).floor();
-    final toI = toIndex % kPieceCountWidth;
-    final toJ = (toIndex / kPieceCountWidth).floor();
+    final fromI = fromIndex % level.width;
+    final fromJ = (fromIndex / level.width).floor();
+    final toI = toIndex % level.width;
+    final toJ = (toIndex / level.width).floor();
 
     final Set<PetalPiece> allFoundPieces = {};
     allFoundPieces.addAll(_findAndResolveComplexMatches(toI, toJ));
@@ -472,9 +563,9 @@ class CandyGame extends FlameGame with DragCallbacks {
   }
 
   int _getIndexFromPosition(Vector2 position) {
-    final pieceSize = size.x / kPieceCountWidth;
-    final offsetX = (size.x - kPieceCountWidth * pieceSize) / 2;
-    final offsetY = (size.y - kPieceCountHeight * pieceSize) / 2;
+    final pieceSize = size.x / level.width;
+    final offsetX = (size.x - level.width * pieceSize) / 2;
+    final offsetY = (size.y - level.width * pieceSize) / 2;
 
     // ✅ 6. Ajusta posição para compensar o offset de centralização
     final adjustedX = position.x - offsetX;
@@ -483,8 +574,8 @@ class CandyGame extends FlameGame with DragCallbacks {
     final i = (adjustedX / pieceSize).floor();
     final j = (adjustedY / pieceSize).floor();
 
-    if (i >= 0 && i < kPieceCountWidth && j >= 0 && j < kPieceCountHeight) {
-      return j * kPieceCountWidth + i;
+    if (i >= 0 && i < level.width && j >= 0 && j < level.width) {
+      return j * level.width + i;
     }
     return -1;
   }
@@ -506,10 +597,10 @@ class CandyGame extends FlameGame with DragCallbacks {
       // Verifica se o movimento é para uma peça adjacente (não diagonal)
       int from = _lastProcessedIndex;
       int to = currentIndex;
-      int fromX = from % kPieceCountWidth;
-      int fromY = (from / kPieceCountWidth).floor();
-      int toX = to % kPieceCountWidth;
-      int toY = (to / kPieceCountWidth).floor();
+      int fromX = from % level.width;
+      int fromY = (from / level.width).floor();
+      int toX = to % level.width;
+      int toY = (to / level.width).floor();
 
       if ((fromX == toX && (fromY - toY).abs() == 1) ||
           (fromY == toY && (fromX - toX).abs() == 1)) {
@@ -537,11 +628,11 @@ class CandyGame extends FlameGame with DragCallbacks {
 
 PetalType _randomPieceType() {
   // 1. Cria uma lista com todos os tipos possíveis a partir do enum.
-  final List<PetalType> allTypes = List.from(PetalType.values);
+  // A declaração da lista e as chamadas de 'remove' são uma única instrução.
+  final List<PetalType> playableTypes = List.from(PetalType.values)
+    ..remove(PetalType.empty)
+    ..remove(PetalType.wall); // O ponto e vírgula (;) só vai no final de tudo.
 
-  // 2. Remove o tipo 'empty' da lista, garantindo que ele não seja escolhido.
-  allTypes.remove(PetalType.empty);
-
-  // 3. Retorna um tipo aleatório apenas da lista de peças jogáveis.
-  return allTypes[Random().nextInt(allTypes.length)];
+  // Retorna um tipo aleatório apenas da lista de peças jogáveis.
+  return playableTypes[Random().nextInt(playableTypes.length)];
 }

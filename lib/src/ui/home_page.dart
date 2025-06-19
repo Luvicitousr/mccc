@@ -2,6 +2,7 @@
 import 'package:flame/flame.dart';
 import 'package:flame/game.dart'; // <-- Adicione esta linha.
 import 'package:flutter/material.dart';
+import 'package:meu_candy_crush_clone/src/ui/petal_fall_game.dart'; // ✅ 2. Importe o jogo das pétalas.
 
 class HomePage extends StatelessWidget {
   @override
@@ -16,6 +17,9 @@ class HomePage extends StatelessWidget {
             'assets/images/home_background.jpg',
             fit: BoxFit.cover, // Garante que a imagem cubra toda a tela.
           ),
+
+          // ✅ 3. Camada 2: Animação das pétalas (por cima do fundo)
+          GameWidget(game: PetalFallGame()),
           // 2. Conteúdo centralizado
           Center(
             child: Column(
