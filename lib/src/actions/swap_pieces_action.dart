@@ -6,6 +6,7 @@ import 'package:flame/components.dart';
 //import '../utils/animations.dart';
 import '../engine/action_manager.dart';
 import '../engine/petal_piece.dart';
+import 'package:flame/effects.dart';
 
 /// Uma ação que move uma lista de peças para seus respectivos destinos de forma simultânea,
 /// com uma animação suave de aceleração e desaceleração (ease-in/ease-out).
@@ -26,15 +27,12 @@ class SwapPiecesAction extends Action {
   late final int _endTime;
 
   // MUDANÇA: O construtor agora é mais flexível.
-  SwapPiecesAction({
-    required this.pieceDestinations,
-    this.durationMs = 300,
-  });
+  SwapPiecesAction({required this.pieceDestinations, this.durationMs = 300});
 
   @override
   void onStart(Map<String, dynamic> globals) {
     // MUDANÇA: Populamos nossas listas internas a partir do mapa.
-    
+
     // 1. Pega a lista de peças a partir das chaves do mapa.
     _pieces = pieceDestinations.keys.toList();
 
@@ -43,7 +41,7 @@ class SwapPiecesAction extends Action {
 
     // 3. Armazena a posição final de cada peça a partir dos valores do mapa.
     _toPositions = _pieces.map((p) => pieceDestinations[p]!).toList();
-    
+
     // 4. Calcula o tempo de início e fim da animação (semelhante a antes).
     _startTime = DateTime.now().millisecondsSinceEpoch;
     _endTime = _startTime + durationMs;

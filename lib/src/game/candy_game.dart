@@ -16,7 +16,7 @@ import '../engine/level_definition.dart'; // Importa a nossa nova classe
 
 class CandyGame extends FlameGame with DragCallbacks {
   late final List<Aabb2> pieceSlots;
-  late final List<PetalPiece> pieces;
+  late List<PetalPiece> pieces;
   int _lastProcessedIndex = -1;
   late final ActionManager actionManager;
 
@@ -101,6 +101,9 @@ class CandyGame extends FlameGame with DragCallbacks {
     // ✅ 3. Calcula o deslocamento para centralizar
     final offsetX = (size.x - boardWidth) / 2;
     final offsetY = (size.y - boardHeight) / 2;
+
+    // ✅ Validação explícita do posicionamento
+    assert(offsetX >= 0 && offsetY >= 0, "Offset negativo: $offsetX, $offsetY");
 
     // ✅ 4. Gera slots com offset de centralização
     pieceSlots = List.generate(level.width * level.height, (index) {
@@ -325,37 +328,27 @@ class CandyGame extends FlameGame with DragCallbacks {
     return wallsToClear;
   }
 
-  // ✅ NOVO: Orquestrador principal da reação em cadeia.
-  /// Inicia o processo de remoção e cascata para um conjunto de peças combinadas.
+  // DENTRO DA CLASSE CandyGame
+
   void _processMatches(Set<PetalPiece> matchedPieces) {
-    // Se não há o que processar, simplesmente retorna.
     if (matchedPieces.isEmpty) {
       return;
     }
 
-    // ✅ 2. ENCONTRA OS OBSTÁCULOS ADJACENTES ÀS PEÇAS COMBINADAS.
     final wallsToClear = _findAdjacentWalls(matchedPieces);
-
-    // ✅ 3. COMBINA OS DOIS CONJUNTOS PARA A ANIMAÇÃO DE REMOÇÃO.
     final allPiecesToAnimate = {...matchedPieces, ...wallsToClear};
 
     actionManager
-        // 1. Anima o desaparecimento das peças da combinação atual.
         .push(RemovePiecesAction(piecesToRemove: allPiecesToAnimate))
-        // 2. Após a animação, executa a lógica de cascata e verifica novas combinações.
         .push(
           FunctionAction(() {
-            // ✅ 5. DECREMENTE OS OBJETIVOS QUANDO AS PEÇAS SÃO REMOVIDAS.
-            // Cria uma cópia do mapa atual de objetivos.
             final currentObjectives = Map<PetalType, int>.from(
               objectives.value,
             );
             bool objectivesUpdated = false;
-            // Marca as peças como 'empty' logicamente.
+
             for (final piece in matchedPieces) {
-              // Se a peça combinada faz parte dos objetivos...
               if (currentObjectives.containsKey(piece.type)) {
-                // Decrementa o contador.
                 currentObjectives[piece.type] =
                     (currentObjectives[piece.type]! - 1).clamp(0, 999);
                 objectivesUpdated = true;
@@ -363,9 +356,6 @@ class CandyGame extends FlameGame with DragCallbacks {
               piece.changeType(PetalType.empty);
             }
 
-            // ✅ --- Parte 2: NOVA LÓGICA para os muros limpos ---
-            // Transforma os muros que foram "quebrados" em espaços vazios também.
-            // Isso permite que a cascata preencha seus lugares.
             for (final wall in wallsToClear) {
               wall.changeType(PetalType.empty);
             }
@@ -374,101 +364,106 @@ class CandyGame extends FlameGame with DragCallbacks {
               objectives.value = currentObjectives;
             }
 
-            // Calcula as animações de gravidade e preenchimento.
-            final fallAnimation = _cascadeAndRefill();
-
-            // Se houve alguma peça que se moveu ou foi criada...
-            if (fallAnimation.pieceDestinations.isNotEmpty) {
-              // 3. Anima a queda das peças.
-              actionManager
-                  .push(fallAnimation)
-                  .push(
-                    FunctionAction(() {
-                      // 4. Após a queda, verifica o tabuleiro inteiro por novas combinações.
-                      final newMatches = _findAllMatchesOnBoard();
-                      // Se encontrou, inicia o processo de novo (reação em cadeia).
-                      if (newMatches.isNotEmpty) {
-                        _processMatches(newMatches);
-                      }
-                    }),
-                  );
-            }
+            // Apenas chama a função. Ela agora gerencia a própria
+            // sequência de animação e a próxima verificação.
+            _cascadeAndRefill();
           }),
         );
   }
 
   // DENTRO DA CLASSE CandyGame
 
-  /// Aplica a gravidade e preenche o topo usando uma lógica de duas fases mais robusta.
-  SwapPiecesAction _cascadeAndRefill() {
+  /// Aplica gravidade e preenchimento por segmentos de coluna, respeitando os muros.
+  void _cascadeAndRefill() {
     final pieceSize = size.x / level.width;
-    final Map<PetalPiece, Vector2> moves = {};
+    final moves = <PetalPiece, Vector2>{};
 
-    // --- FASE 1: GRAVIDADE (Apenas peças existentes caem) ---
+    final newPiecesState = List<PetalPiece>.from(pieces);
+
     // Itera através de cada coluna.
     for (int i = 0; i < level.width; i++) {
-      // Para cada coluna, começamos a busca de baixo para cima.
-      // 'lowestEmptyRow' vai guardar a posição mais baixa para onde uma peça pode cair.
-      int lowestEmptyRow = -1;
+      // 1. Encontra os limites dos segmentos (muros, topo e fundo).
+      final wallBoundaries = <int>[-1]; // Adiciona o "topo" virtual
+      for (int j = 0; j < level.height; j++) {
+        if (pieceAt(i, j)!.type == PetalType.wall) {
+          wallBoundaries.add(j);
+        }
+      }
+      wallBoundaries.add(level.height); // Adiciona o "fundo" virtual
 
-      for (int j = level.height - 1; j >= 0; j--) {
-        final piece = pieceAt(i, j)!;
+      // 2. Processa cada segmento da coluna, de baixo para cima.
+      for (int k = wallBoundaries.length - 2; k >= 0; k--) {
+        final topWallIndex = wallBoundaries[k];
+        final bottomWallIndex = wallBoundaries[k + 1];
 
-        if (piece.type == PetalType.empty) {
-          // Se encontramos um espaço vazio e ainda não tínhamos um "alvo",
-          // marcamos esta linha como o alvo de queda mais baixo.
-          if (lowestEmptyRow == -1) {
-            lowestEmptyRow = j;
+        final segmentHeight = bottomWallIndex - topWallIndex - 1;
+        if (segmentHeight <= 0) continue;
+
+        // 3. Coleta as peças jogáveis existentes DENTRO do segmento.
+        final piecesInSegment = Queue<PetalPiece>();
+        for (int j = topWallIndex + 1; j < bottomWallIndex; j++) {
+          final piece = pieceAt(i, j)!;
+          if (piece.type != PetalType.empty) {
+            // Muros não entram aqui
+            piecesInSegment.add(piece);
           }
-        } else if (piece.type == PetalType.wall) {
-          // Se encontramos um muro, ele é um "chão". Resetamos nosso alvo de queda.
-          lowestEmptyRow = -1;
-        } else {
-          // Se encontramos uma peça jogável e existe um alvo de queda abaixo dela...
-          if (lowestEmptyRow != -1) {
-            // Esta peça deve cair!
-            final pieceToMove = piece;
-            final targetIndex = lowestEmptyRow * level.width + i;
+        }
 
-            // Troca a peça de lugar na lista lógica.
-            pieces[j * level.width + i] = pieces[targetIndex];
-            pieces[targetIndex] = pieceToMove;
-
-            // Registra a animação de movimento.
-            moves[pieceToMove] = pieceSlots[targetIndex].min.clone();
-
-            // O alvo de queda agora sobe uma linha.
-            lowestEmptyRow--;
+        // 4. Se este é o segmento do topo, gera novas peças para preencher.
+        final bool isTopSegment = topWallIndex == -1;
+        if (isTopSegment) {
+          final newPieceCount = segmentHeight - piecesInSegment.length;
+          for (int n = 0; n < newPieceCount; n++) {
+            final newPosition = pieceSlots[n * level.width + i].min;
+            final newPiece = PetalPiece(
+              type: _randomPieceType(),
+              position: Vector2(
+                newPosition.x,
+                -pieceSize * (newPieceCount - n),
+              ),
+              size: Vector2.all(pieceSize),
+            );
+            add(newPiece); // Adiciona a nova peça ao jogo
+            piecesInSegment.addFirst(newPiece); // Adiciona no início da fila
           }
+        }
+
+        // 5. Preenche o segmento na nova lista, de baixo para cima.
+        for (int j = bottomWallIndex - 1; j > topWallIndex; j--) {
+          final index = j * level.width + i;
+          final newPosition = pieceSlots[index].min;
+
+          final pieceToPlace = piecesInSegment.isNotEmpty
+              ? piecesInSegment.removeLast()
+              : pieceAt(i, j)!; // Se não há peças, deixa o buraco (empty)
+
+          newPiecesState[index] = pieceToPlace;
+          moves[pieceToPlace] = newPosition;
         }
       }
     }
 
-    // --- FASE 2: PREENCHIMENTO (Apenas novas peças do topo) ---
-    // Após a gravidade ter sido aplicada, qualquer espaço vazio restante
-    // deve estar no topo das colunas.
-    for (int i = 0; i < level.width; i++) {
-      for (int j = level.height - 1; j >= 0; j--) {
-        final piece = pieceAt(i, j)!;
-        if (piece.type == PetalType.empty) {
-          final slot = pieceSlots[j * level.width + i];
-
-          // Reutiliza o objeto da peça, mas muda seu tipo para um aleatório.
-          piece.changeType(_randomPieceType());
-
-          // Define a posição inicial da animação (acima da tela).
-          piece.position = Vector2(slot.min.x, -pieceSize);
-          piece.opacity = 1.0;
-          piece.scale = Vector2.all(1.0);
-
-          // Registra a animação de queda para esta nova peça.
-          moves[piece] = slot.min.clone();
-        }
+    // Limpa peças que foram substituídas por completo
+    for (final oldPiece in pieces) {
+      if (!newPiecesState.contains(oldPiece)) {
+        oldPiece.removeFromParent();
       }
     }
 
-    // Retorna uma única ação que animará todas as peças simultaneamente.
-    return SwapPiecesAction(pieceDestinations: moves, durationMs: 400);
+    pieces = newPiecesState;
+
+    // Empurra as ações para a fila
+    actionManager.push(
+      SwapPiecesAction(pieceDestinations: moves, durationMs: 400),
+    );
+    actionManager.push(
+      FunctionAction(() {
+        final newMatches = _findAllMatchesOnBoard();
+        if (newMatches.isNotEmpty) {
+          _processMatches(newMatches);
+        }
+      }),
+    );
   }
 
   // ✅ NOVO: Encontra todas as combinações no tabuleiro.
