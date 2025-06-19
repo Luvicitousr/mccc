@@ -1,6 +1,8 @@
 // lib/main.dart
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart'; // Importe o Material
+import 'package:flutter_bloc/flutter_bloc.dart'; // Importa o BLoC
+import 'package:meu_candy_crush_clone/src/bloc/game_bloc.dart'; // Importa nosso BLoC
 import 'package:flutter/widgets.dart';
 // 1. Importe o pacote que acabamos de adicionar.
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -22,7 +24,8 @@ Future<void> main() async {
   // 3. Adicione o código para travar a orientação.
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp, // Permite a orientação retrato padrão.
-    DeviceOrientation.portraitDown, // Permite a orientação retrato de cabeça para baixo.
+    DeviceOrientation
+        .portraitDown, // Permite a orientação retrato de cabeça para baixo.
   ]);
   // ✅ AÇÃO CORRIGIDA: Inicie um MaterialApp, não um GameWidget.
   runApp(const MyApp());
@@ -34,16 +37,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      // Desativa a faixa de "Debug" no canto da tela.
-      debugShowCheckedModeBanner: false,
-      title: 'Candy Game',
-      // A tela inicial do aplicativo será a HomePage.
-      home: HomePage(),
-      // Define as rotas nomeadas para navegação.
-      routes: {
-        '/play': (context) => const GamePage(),
-      },
+    // ✅ Envolve o MaterialApp com um BlocProvider para criar e fornecer o GameBloc.
+    return BlocProvider(
+      create: (context) => GameBloc(),
+      child: MaterialApp(
+        // Desativa a faixa de "Debug" no canto da tela.
+        debugShowCheckedModeBanner: false,
+        title: 'Garden of Petals',
+        // A tela inicial do aplicativo será a HomePage.
+        home: HomePage(),
+        // Define as rotas nomeadas para navegação.
+        routes: {'/play': (context) => const GamePage()},
+      ),
     );
   }
 }

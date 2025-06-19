@@ -1,6 +1,8 @@
 // lib/src/ui/game_page.dart
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart'; // Importa o BLoC
+import '../bloc/game_bloc.dart'; // Importa nosso BLoC
 import '../engine/level_definition.dart'; // Importa a definição
 import '../game/candy_game.dart';
 // Importe o novo painel de UI
@@ -12,38 +14,56 @@ import 'objectives_panel.dart';
 import 'game_won_panel.dart';
 
 /// Um Widget simples que hospeda o GameWidget do nosso jogo.
-class GamePage extends StatefulWidget {
+class GamePage extends StatelessWidget {
+  // ✅ Pode voltar a ser StatelessWidget
   const GamePage({super.key});
 
   @override
-  State<GamePage> createState() => _GamePageState();
+  Widget build(BuildContext context) {
+    // ✅ O BlocBuilder ouve as mudanças no GameBloc.
+    return BlocBuilder<GameBloc, GameState>(
+      builder: (context, state) {
+        // Quando o estado muda, este builder é chamado novamente.
+        if (state is GamePlayState) {
+          // Usamos a 'key' do estado para forçar o Flutter a criar uma
+          // nova instância do FutureBuilder e do GameWidget, reiniciando o nível.
+          return LevelLoader(key: state.key);
+        }
+        // Estado de fallback (não deve acontecer neste caso).
+        return const Center(child: Text('Erro de Estado'));
+      },
+    );
+  }
 }
 
-class _GamePageState extends State<GamePage> {
-  // Guarda a definição do nível após ser carregada.
-  Future<LevelDefinition>? _levelFuture;
+// Widget auxiliar para manter a lógica de carregamento do nível
+class LevelLoader extends StatefulWidget {
+  const LevelLoader({super.key});
+
+  @override
+  State<LevelLoader> createState() => _LevelLoaderState();
+}
+
+class _LevelLoaderState extends State<LevelLoader> {
+  late final Future<LevelDefinition> _levelFuture;
 
   @override
   void initState() {
     super.initState();
-    // Inicia o carregamento do nível 1.
     _levelFuture = LevelDefinition.load('level_1.json');
   }
 
   @override
   Widget build(BuildContext context) {
-    // FutureBuilder é perfeito para construir uma UI baseada em um processo assíncrono.
     return FutureBuilder<LevelDefinition>(
       future: _levelFuture,
       builder: (context, snapshot) {
-        // Enquanto o nível está carregando, mostra um indicador de progresso.
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
-
         final level = snapshot.data!;
-
-        // Quando o nível estiver carregado, constrói o GameWidget.
         return GameWidget.controlled(
           gameFactory: () => CandyGame(level: level),
           // O mapa de overlays conecta um nome de string a um construtor de widget.
@@ -58,7 +78,7 @@ class _GamePageState extends State<GamePage> {
             'gameOverPanel': (context, game) {
               return GameOverPanel(
                 // Define a ação do botão.
-                onRestart: () {
+                onTryAgain: () {
                   // ✅ CORREÇÃO: Verifica se o objeto 'game' é um FlameGame antes de usá-lo.
                   if (game is FlameGame) {
                     // Dentro deste 'if', o Dart já sabe que 'game' é um FlameGame.
@@ -66,8 +86,8 @@ class _GamePageState extends State<GamePage> {
                     game.overlays.remove('gameOverPanel');
                     game.resumeEngine();
                   }
-                  // Usa o Navigator para voltar ao menu principal.
-                  Navigator.of(context).pop();
+                  // ✅ Dispara o evento de reset no GameBloc!
+                  context.read<GameBloc>().add(ResetGameEvent());
                 },
               );
             },

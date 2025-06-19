@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 class GameOverPanel extends StatelessWidget {
   /// Um callback para ser executado quando o jogador decidir
   /// sair da tela de game over.
-  final VoidCallback onRestart;
+  final VoidCallback onTryAgain;
 
   const GameOverPanel({
     super.key,
-    required this.onRestart,
+    required this.onTryAgain,
   });
 
   @override
@@ -50,13 +50,13 @@ class GameOverPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: onRestart,
+                  onPressed: onTryAgain,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                     backgroundColor: Colors.blueAccent,
                   ),
                   child: const Text(
-                    'Voltar ao Menu',
+                    'Tentar Novamente',
                     style: TextStyle(fontSize: 20, color: Colors.white),
                   ),
                 )
