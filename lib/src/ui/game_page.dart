@@ -68,6 +68,22 @@ class _LevelLoaderState extends State<LevelLoader> {
           gameFactory: () => CandyGame(level: level),
           // O mapa de overlays conecta um nome de string a um construtor de widget.
           overlayBuilderMap: {
+            'noMovesOverlay': (context, game) {
+              return Container(
+                color: Colors.black.withOpacity(0.6),
+                child: const Center(
+                  child: Text(
+                    'Sem movimentos...\nEmbaralhando!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            },
             'movesPanel': (context, game) {
               // O 'game' aqui é a instância do CandyGame criada acima.
               // Nós passamos o notificador de movimentos para o nosso painel.

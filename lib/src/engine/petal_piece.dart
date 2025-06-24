@@ -1,44 +1,51 @@
 // lib/src/engine/petal_piece.dart
+
+import 'dart:ui';
 import 'package:flame/components.dart';
 
 // Enum para os tipos de pétalas
 enum PetalType {
-  cherry, plum, maple, lily, orchid, peony,
-  // ✅ 1. Adiciona um tipo para representar um espaço vazio.
+  cherry,
+  plum,
+  maple,
+  lily,
+  orchid,
+  peony,
   empty,
-  wall,  // ✅ ADICIONA O NOVO TIPO DE OBSTÁCULO.
+  wall,
+  caged2,
+  caged1,
 }
 
 class PetalPiece extends SpriteComponent {
-  // ✅ 2. O tipo agora pode ser modificado.
   PetalType type;
+  final Map<PetalType, Sprite> spriteMap; // Mapa de sprites pré-carregados
 
   PetalPiece({
     required this.type,
+    required this.spriteMap, // Recebe o mapa de sprites
     required Vector2 position,
     required Vector2 size,
   }) : super(position: position, size: size);
 
   @override
-  Future<void> onLoad() async {
-    // Carrega o sprite com base no nome do enum
-    sprite = await Sprite.load('tiles/${type.name}_petal.png');
+  void onLoad() {
+    // Agora é síncrono! Pega o sprite diretamente do mapa.
+    sprite = spriteMap[type];
   }
 
-  // ✅ 3. Novo método para alterar o tipo e o sprite da peça.
-  /// Altera o tipo da peça e atualiza seu sprite para corresponder ao novo tipo.
-  Future<void> changeType(PetalType newType) async {
+  // Altera o tipo e o sprite da peça instantaneamente.
+  void changeType(PetalType newType) {
     type = newType;
-    await _updateSprite();
+    sprite = spriteMap[type];
   }
 
-  // ✅ 4. Lógica de carregamento de sprite extraída para um método privado.
-  Future<void> _updateSprite() async {
-    // Carrega o sprite correspondente ou fica transparente se for 'empty'.
-    if (type == PetalType.empty) {
-      sprite = null; // Remove o sprite para tornar a peça invisível.
-      return;
+  // Não precisamos mais dos métodos async _updateSprite
+  // A lógica de renderização de segurança pode ser mantida
+  @override
+  void render(Canvas canvas) {
+    if (sprite != null) {
+      super.render(canvas);
     }
-    sprite = await Sprite.load('tiles/${type.name}_petal.png');
   }
 }

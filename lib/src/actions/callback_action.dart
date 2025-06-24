@@ -10,6 +10,6 @@ class FunctionAction extends Action {
   @override
   void perform(ListQueue<Action> actionQueue, Map<String, dynamic> globals) {
     _function();
-    terminate(); // A ação termina assim que a função é executada 
+    terminate(); // A ação termina assim que a função é executada
   }
 }
