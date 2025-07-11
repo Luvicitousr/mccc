@@ -1,20 +1,31 @@
 // lib/src/game/candy_game.dart
-import '../actions/shuffle_animation_action.dart'; // <-- IMPORTE A NOVA AÇÃO
-import '../actions/animate_falls_action.dart';
 import 'dart:async';
-import 'dart:math';
 import 'dart:collection';
+import 'dart:math';
+
 import 'package:flame/components.dart';
-import 'package:flame/game.dart';
 import 'package:flame/events.dart';
-import 'package:flutter/material.dart';
-import '../actions/swap_pieces_action.dart';
-import '../actions/remove_pieces_action.dart';
-import '../actions/callback_action.dart';
-import '../engine/action_manager.dart';
-import '../engine/petal_piece.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
+
+import '../actions/animate_falls_action.dart';
+import '../actions/callback_action.dart';
+import '../actions/remove_pieces_action.dart';
+import '../actions/swap_pieces_action.dart';
+import '../audio/zen_audio_manager.dart'; // <-- Adicionado
+import '../effects/zen_bomb_explosion.dart'; // ✅ Importa o efeito de explosão
+import '../engine/action_manager.dart';
 import '../engine/level_definition.dart';
+import '../engine/petal_piece.dart';
+import '../ui/intelligent_shuffle_manager.dart'; // <-- Corrija o caminho se necessário
+import '../ui/zen_garden_background.dart'; // <-- Adicionado
+import '../ui/zen_garden_elements.dart'; // <-- Adicionado
+import 'bomb_activation_handler.dart';
+import 'enhanced_move_validation_system.dart';
+import 'first_victory_manager.dart'; // Importe o gerenciador
+import 'game_over_world.dart';
+import '../ui//game_board_background.dart';
+import 'game_state_manager.dart';
 
 // Estrutura para representar um movimento de queda
 class FallMovement {
@@ -77,6 +88,7 @@ enum MoveValidationResult {
   invalidEmptyTarget,
   invalidWallTarget,
   invalidWallSource,
+  invalidEmptySource, // ✅ ADICIONE ESTA LINHA
   invalidSamePosition,
   invalidNotAdjacent,
   invalidOutOfBounds,
@@ -120,6 +132,13 @@ class MoveValidationDetails {
     isAllowed: false,
   );
 
+  // ✅ ADICIONE ESTE NOVO BLOCO
+  static const MoveValidationDetails invalidEmptySource = MoveValidationDetails(
+    result: MoveValidationResult.invalidEmptySource,
+    message: "Não é possível iniciar um movimento a partir de um espaço vazio",
+    isAllowed: false,
+  );
+
   static const MoveValidationDetails invalidSamePosition =
       MoveValidationDetails(
         result: MoveValidationResult.invalidSamePosition,
@@ -146,14 +165,63 @@ class CandyGame extends FlameGame with DragCallbacks {
   late final List<Aabb2> pieceSlots;
   late List<PetalPiece> pieces;
   int _lastProcessedIndex = -1;
-  late final ActionManager actionManager;
+  late ActionManager actionManager;
+  late BombActivationHandler bombHandler;
   late final ValueNotifier<int> movesLeft;
   bool _isGameOver = false;
   late final ValueNotifier<Map<PetalType, int>> objectives;
   bool _isGameWon = false;
   final LevelDefinition level;
+  final VoidCallback onGameOver; // ✅ ADICIONE ESTA LINHA
 
-  CandyGame({required this.level});
+  // ✅ PASSO 1: Adicione as propriedades para os callbacks
+  final VoidCallback onRestart;
+  final VoidCallback onMenu;
+  late final IntelligentShuffleManager
+  shuffleManager; // <-- Adicione esta linha
+
+  Vector2? bombCreationPosition; // <-- Adicione esta variável
+
+  // ✅ CORREÇÃO: Inicialize a variável diretamente aqui e remova o 'late'.
+  final ValueNotifier<String> shuffleStatusNotifier = ValueNotifier("");
+
+  // ✅ 1. ADICIONE UM NOTIFICADOR PARA A PONTUAÇÃO ATUAL
+  final ValueNotifier<int> currentScore = ValueNotifier(0);
+
+  // ✅ ATUALIZE O CONSTRUTOR
+  CandyGame({
+    required this.level,
+    required this.onGameOver,
+    required this.onRestart, // Adicionado
+    required this.onMenu,
+  });
+
+  // ✅ 2. CRIE UMA FUNÇÃO PARA CALCULAR OS PONTOS
+  void _calculateAndAddPoints(Set<PetalPiece> matchedPieces) {
+    int points = 0;
+    final matchCount = matchedPieces.length;
+
+    // Lógica de pontuação baseada no tamanho da combinação
+    if (matchCount == 3) {
+      points = 30;
+    } else if (matchCount == 4) {
+      points = 60;
+    } else if (matchCount >= 5) {
+      points = 120; // Bônus por criar uma bomba
+    }
+
+    // Bônus por combos em cascata (se houver)
+    if (actionManager.isRunning()) {
+      points = (points * 1.5).round(); // Bônus de 50% por cascata
+    }
+
+    currentScore.value += points;
+    if (kDebugMode) {
+      print(
+        "Match de $matchCount peças. Pontos: +$points. Total: ${currentScore.value}",
+      );
+    }
+  }
 
   // ✅ NOVO MÉTODO: Carrega todos os sprites necessários uma única vez.
   Future<void> _loadSprites() async {
@@ -173,15 +241,42 @@ class CandyGame extends FlameGame with DragCallbacks {
     }
   }
 
+  // DENTRO DA CLASSE CandyGame
+  void _showGameOverScreen() {
+    // ✅ ADICIONE ESTA LINHA PARA DEPURAÇÃO
+    print('--- DEBUG: O MÉTODO _showGameOverScreen() FOI CHAMADO! ---');
+
+    // 1. Limpa todos os componentes do jogo (peças, etc.)
+    // Isso fará com que o banner de movimentos e o de status de shuffle desapareçam.
+    overlays.remove('movesPanel');
+    overlays.remove('objectivesPanel');
+    overlays.remove('shuffleStatus');
+    // O 'where' garante que não removeremos componentes essenciais como o background, se houver.
+    removeAll(children.whereType<PetalPiece>());
+
+    // 2. Adiciona o novo mundo de Game Over
+    add(
+      GameOverWorld(
+        // ✅ PASSO 3: Passe os callbacks recebidos pelo construtor
+        onRestart: onRestart,
+        onMenu: onMenu,
+      ),
+    );
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
+
+    // Se o jogo acabou, simplesmente saia, mas após já ter atualizado os filhos.
+    if (_isGameOver) {
+      return;
+    }
     actionManager.globals['dt'] = dt;
     actionManager.performStuff();
-    if (movesLeft.value == 0 && !actionManager.isRunning() && !_isGameOver) {
+    if (movesLeft.value <= 0 && !actionManager.isRunning() && !_isGameOver) {
       _isGameOver = true;
-      pauseEngine();
-      overlays.add('gameOverPanel');
+      _showGameOverScreen();
     }
     final allObjectivesMet = objectives.value.values.every(
       (count) => count <= 0,
@@ -189,13 +284,39 @@ class CandyGame extends FlameGame with DragCallbacks {
     if (allObjectivesMet && !_isGameWon && !_isGameOver) {
       _isGameWon = true;
       pauseEngine();
-      overlays.add('gameWonPanel');
+
+      // ✅ CORREÇÃO: SALVAR O PROGRESSO AQUI
+      final movesUsed = level.moves - movesLeft.value;
+      GameStateManager.instance.completeLevel(
+        level.levelNumber,
+        score: currentScore.value,
+        movesUsed: movesUsed,
+      );
+
+      // ✅ LÓGICA DE DECISÃO
+      final victoryManager = FirstVictoryManager.instance;
+
+      // Verifica se é o nível 1 E se o painel especial nunca foi visto
+      if (level.levelNumber == 1 &&
+          victoryManager.shouldShowLevelOneVictoryPanel()) {
+        // Marca imediatamente como visto para não mostrar de novo
+        victoryManager.markLevelOneVictoryPanelAsSeen();
+
+        // Adiciona o painel especial de vitória do nível 1
+        overlays.add('levelOneVictoryPanel');
+      } else {
+        // Para todos os outros níveis, chama o painel de vitória padrão
+        overlays.add('victoryPanel');
+      }
     }
   }
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    // ✅ ADICIONA O NOVO FUNDO ESPECÍFICO DO JOGO
+    await add(GameBoardBackground()..priority = -100);
 
     // ✅ MODIFICAÇÃO: Chama o novo método de pré-carregamento.
     await _loadSprites();
@@ -204,8 +325,6 @@ class CandyGame extends FlameGame with DragCallbacks {
     movesLeft = ValueNotifier(level.moves);
     overlays.add('movesPanel');
     overlays.add('objectivesPanel');
-    final background = await Sprite.load('Background.jpg');
-    add(SpriteComponent(sprite: background, size: size, priority: -1));
     actionManager = ActionManager();
     final pieceSize = size.x / level.width;
     final boardWidth = level.width * pieceSize;
@@ -241,28 +360,28 @@ class CandyGame extends FlameGame with DragCallbacks {
           bool isMatch;
           do {
             isMatch = false;
-            pieceType = _randomPieceType();
+            pieceType = _randomPieceType(); //
+
+            // Verificação horizontal correta
             if (i >= 2) {
-              if (level.layout[index - 1] == 1 &&
-                  level.layout[index - 2] == 1) {
-                final piece1 = generatedPieces[j * level.width + (i - 1)];
-                final piece2 = generatedPieces[j * level.width + (i - 2)];
-                if (piece1.type == pieceType && piece2.type == pieceType) {
-                  isMatch = true;
-                }
+              // A verificação agora se baseia apenas nos tipos das peças já geradas [cite: 309, 310, 311]
+              final piece1 = generatedPieces[j * level.width + (i - 1)];
+              final piece2 = generatedPieces[j * level.width + (i - 2)];
+              if (piece1.type == pieceType && piece2.type == pieceType) {
+                isMatch = true; // [cite: 311]
               }
             }
+
+            // Verificação vertical correta
             if (j >= 2) {
-              if (level.layout[index - level.width] == 1 &&
-                  level.layout[index - (level.width * 2)] == 1) {
-                final piece1 = generatedPieces[(j - 1) * level.width + i];
-                final piece2 = generatedPieces[(j - 2) * level.width + i];
-                if (piece1.type == pieceType && piece2.type == pieceType) {
-                  isMatch = true;
-                }
+              // A verificação agora se baseia apenas nos tipos das peças já geradas [cite: 312, 313, 314, 315]
+              final piece1 = generatedPieces[(j - 1) * level.width + i];
+              final piece2 = generatedPieces[(j - 2) * level.width + i];
+              if (piece1.type == pieceType && piece2.type == pieceType) {
+                isMatch = true; // [cite: 315]
               }
             }
-          } while (isMatch);
+          } while (isMatch); // [cite: 316]
         }
 
         // ✅ MODIFICAÇÃO: Passa o mapa de sprites para cada peça criada.
@@ -277,7 +396,87 @@ class CandyGame extends FlameGame with DragCallbacks {
       }
     }
     pieces = generatedPieces;
+
+    // Inicialize o shuffleManager após 'pieces' ter sido criado
+    shuffleManager = IntelligentShuffleManager(
+      level: level,
+      pieces: pieces,
+      onShuffleComplete: () {
+        if (kDebugMode) {
+          print("[CANDY_GAME] Shuffle concluído, o jogo pode continuar.");
+        }
+        // Opcional: Adicionar lógica extra após o shuffle, se necessário.
+      },
+      onStatusUpdate: (message) {
+        shuffleStatusNotifier.value = message;
+      },
+    );
+
+    // Inicializa handler de bomba
+    bombHandler =
+        BombActivationHandler(
+            actionManager: actionManager,
+            pieces: pieces,
+            pieceSlots: pieceSlots,
+            levelWidth: level.width,
+            movesLeft: movesLeft,
+            objectives: objectives,
+            startCascade: _startSequentialCascade,
+          )
+          // Use o operador '..' para definir o campo após a inicialização
+          ..onBombCreatedWithImmediateTutorial = (position) {
+            // Armazena a posição onde a animação deve ocorrer
+            bombCreationPosition = position;
+            // Pede ao Flame para mostrar o overlay com o nome 'bombCreation'
+            overlays.add('bombCreation');
+          }
+          // ✅ CORREÇÃO: Conecta o evento de explosão ao efeito visual.
+          ..onBombExploded = (center, radius) {
+            if (kDebugMode) {
+              print(
+                "[CANDY_GAME] Recebido evento onBombExploded. Adicionando efeito...",
+              );
+            }
+            add(ZenBombExplosion(explosionCenter: center, maxRadius: radius));
+          };
+
     await addAll(pieces);
+
+    // ✅ VALIDAÇÃO INICIAL DO TABULEIRO ADICIONADA AQUI
+    if (kDebugMode) {
+      print("[CANDY_GAME] Iniciando validação pós-geração do tabuleiro...");
+    }
+
+    final validationSystem = EnhancedMoveValidationSystem(
+      level: level,
+      pieces: pieces,
+    );
+
+    int initialShuffleAttempts = 0;
+    const maxInitialAttempts = 10; // Prevenção de loop infinito
+
+    // Enquanto o tabuleiro gerado não tiver jogadas válidas, embaralhe.
+    while (!validationSystem.hasValidMovesAvailable() &&
+        initialShuffleAttempts < maxInitialAttempts) {
+      initialShuffleAttempts++;
+      if (kDebugMode) {
+        print(
+          "[CANDY_GAME] 🚨 Tabuleiro inicial sem jogadas válidas. Forçando shuffle (tentativa $initialShuffleAttempts)...",
+        );
+      }
+      // Usa o mesmo sistema de shuffle inteligente para corrigir o tabuleiro
+      await validationSystem.executeIntelligentShuffle();
+    }
+
+    if (kDebugMode && initialShuffleAttempts > 0) {
+      print(
+        "[CANDY_GAME] ✅ Tabuleiro corrigido e validado com $initialShuffleAttempts tentativa(s) de shuffle.",
+      );
+    } else if (initialShuffleAttempts >= maxInitialAttempts) {
+      print(
+        "[CANDY_GAME] ❌ FALHA CRÍTICA: Não foi possível gerar um tabuleiro inicial válido após $maxInitialAttempts tentativas.",
+      );
+    }
   }
 
   PetalPiece? pieceAt(int i, int j) {
@@ -341,6 +540,17 @@ class CandyGame extends FlameGame with DragCallbacks {
 
     final fromPiece = pieces[fromIndex];
     final toPiece = pieces[toIndex];
+
+    // ✅ ADICIONE ESTA NOVA VERIFICAÇÃO AQUI
+    // Validação extra: Verificar se a peça de origem é um espaço vazio
+    if (fromPiece.type == PetalType.empty) {
+      if (kDebugMode) {
+        print(
+          "[VALIDATION] ❌ Movimento BLOQUEADO: tentativa de mover um espaço vazio.",
+        );
+      }
+      return MoveValidationDetails.invalidEmptySource;
+    }
 
     // Validação 4: Verificar se a peça de origem não é uma parede
     if (fromPiece.type == PetalType.wall) {
@@ -628,6 +838,9 @@ class CandyGame extends FlameGame with DragCallbacks {
     if (matchedPieces.isEmpty) {
       return;
     }
+
+    // Adiciona os pontos ANTES de remover as peças
+    _calculateAndAddPoints(matchedPieces);
     final wallsToClear = _findAdjacentWalls(matchedPieces);
     final cagedPetalsToDestroy = _findAndDamageAdjacentCagedPetals(
       matchedPieces,
@@ -1184,34 +1397,6 @@ class CandyGame extends FlameGame with DragCallbacks {
     return isMatch;
   }
 
-  /// 🔧 CORREÇÃO CRÍTICA: Método de embaralhamento com proteção contra múltiplas execuções
-  void _triggerShuffle() {
-    // Verifica se já há uma ação de embaralhamento em execução
-    if (actionManager.isRunning()) {
-      if (kDebugMode) {
-        print(
-          "[DEBUG] ⚠️ Embaralhamento ignorado: ActionManager já está executando",
-        );
-      }
-      return;
-    }
-
-    if (kDebugMode) {
-      print("[DEBUG] 🎲 Sem jogadas! Acionando a ShuffleAnimationAction.");
-    }
-
-    try {
-      // Cria nova instância da ação de embaralhamento
-      final shuffleAction = ShuffleAnimationAction(game: this);
-      actionManager.push(shuffleAction);
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        print("[DEBUG] ❌ Erro ao criar ShuffleAnimationAction: $e");
-        print("[DEBUG] Stack trace: $stackTrace");
-      }
-    }
-  }
-
   // Finaliza a cascata e verifica por novos matches
   void _finalizeCascade() {
     if (kDebugMode) {
@@ -1232,8 +1417,14 @@ class CandyGame extends FlameGame with DragCallbacks {
     } else {
       // Se não há novos matches, verifique se o jogador tem jogadas possíveis.
       if (!_hasPossibleMoves()) {
-        // Se não houver jogadas, acione a ação de embaralhar.
-        _triggerShuffle();
+        // ✅ CORREÇÃO: Chama diretamente o shuffle manager.
+        // Ele é inteligente e não causará o conflito anterior.
+        if (kDebugMode) {
+          print(
+            "[CANDY_GAME] 🚫 Nenhum movimento possível. Acionando shuffle manager...",
+          );
+        }
+        shuffleManager.checkAndShuffleIfNeeded();
       } else {
         // Se há jogadas, o jogo está pronto para o input do usuário.
         if (kDebugMode) {
@@ -1241,6 +1432,30 @@ class CandyGame extends FlameGame with DragCallbacks {
         }
       }
     }
+  }
+
+  /// ✅ NOVO MÉTODO: Chamado após a conclusão de todas as ações de uma jogada.
+  /// Verifica se há movimentos válidos e aciona o shuffle se necessário.
+  void _onTurnComplete() {
+    // Uma verificação de segurança final. Esta função só deve ser chamada quando o jogo estiver ocioso.
+    if (actionManager.isRunning()) {
+      if (kDebugMode) {
+        print(
+          "[CANDY_GAME] ⚠️ _onTurnComplete chamado, mas ActionManager ainda está ocupado.",
+        );
+      }
+      return;
+    }
+
+    if (kDebugMode) {
+      print(
+        "[CANDY_GAME] 🔄 Jogada finalizada. Verificando necessidade de shuffle...",
+      );
+    }
+
+    // Usa o IntelligentShuffleManager para verificar e embaralhar de forma assíncrona.
+    // Isso garante que a UI não trave e que o processo seja gerenciado corretamente.
+    shuffleManager.checkAndShuffleIfNeeded();
   }
 
   // =========================================================================
@@ -1594,6 +1809,14 @@ class CandyGame extends FlameGame with DragCallbacks {
   // 🎮 MÉTODO PRINCIPAL DE JOGADA COM VALIDAÇÃO RIGOROSA
   // =========================================================================
   void _play(int fromIndex, int toIndex) {
+    // ✅ CORREÇÃO: Bloqueia a jogada se não houver mais movimentos.
+    // Esta verificação impede que o contador se torne negativo.
+    if (_isGameOver || movesLeft.value <= 0) {
+      if (kDebugMode) {
+        print("[PLAY] 🚫 Movimento ignorado: Jogo já terminou.");
+      }
+      return;
+    }
     if (actionManager.isRunning()) {
       if (kDebugMode) {
         print("[PLAY] ⏸️ Movimento ignorado: ActionManager está executando");
@@ -1601,46 +1824,86 @@ class CandyGame extends FlameGame with DragCallbacks {
       return;
     }
 
-    // 🚫 VALIDAÇÃO PRINCIPAL: Aplicar regras de movimento
     final validation = validateMove(fromIndex, toIndex);
-
     if (!validation.isAllowed) {
-      // Movimento inválido - mostrar feedback e bloquear
       _showInvalidMovefeedback(validation);
       return;
     }
 
-    // Se chegou até aqui, o movimento passou na validação básica
     final fromPiece = pieces[fromIndex];
     final toPiece = pieces[toIndex];
 
-    // Executa a troca temporária para verificar matches
+    // ✅ CORREÇÃO: VERIFICAÇÃO DE ATIVAÇÃO DA BOMBA
+    // Verifica se uma das peças é uma bomba ANTES de procurar por matches.
+    if (bombHandler.isBomb(fromPiece) || bombHandler.isBomb(toPiece)) {
+      if (kDebugMode) {
+        print(
+          "[PLAY] 💣 Detecção de movimento com bomba. Iniciando ativação...",
+        );
+      }
+      // Chama o handler de ativação e encerra o método _play aqui.
+      // O BombActivationHandler cuidará de toda a lógica de explosão.
+      bombHandler.activateBombFromMove(fromIndex, toIndex);
+      return;
+    }
+    final fromPosition = pieceSlots[fromIndex].min.clone();
+    final toPosition = pieceSlots[toIndex].min.clone();
+
+    // 1. Executa a troca temporária
     final temp = pieces[fromIndex];
     pieces[fromIndex] = pieces[toIndex];
     pieces[toIndex] = temp;
 
+    // 2. Encontra combinações separadamente para cada peça trocada
     final fromI = fromIndex % level.width;
     final fromJ = (fromIndex / level.width).floor();
     final toI = toIndex % level.width;
     final toJ = (toIndex / level.width).floor();
-    final Set<PetalPiece> allFoundPieces = {};
-    allFoundPieces.addAll(_findAndResolveComplexMatches(toI, toJ));
-    allFoundPieces.addAll(_findAndResolveComplexMatches(fromI, fromJ));
 
-    final fromPosition = pieceSlots[fromIndex].min.clone();
-    final toPosition = pieceSlots[toIndex].min.clone();
+    // Combinações resultantes na posição para onde a peça foi movida
+    final matchesAtDestination = _findAndResolveComplexMatches(toI, toJ);
+    // Combinações resultantes na posição de origem da outra peça
+    final matchesAtOrigin = _findAndResolveComplexMatches(fromI, fromJ);
+
+    bool bombCreated = false;
+    final Set<PetalPiece> allFoundPieces = {};
+    allFoundPieces.addAll(matchesAtDestination);
+    allFoundPieces.addAll(matchesAtOrigin);
 
     if (allFoundPieces.isNotEmpty) {
-      // Movimento válido que resulta em match
+      // MOVIMENTO VÁLIDO QUE GERA COMBINAÇÃO
       movesLeft.value--;
 
-      if (kDebugMode) {
-        print(
-          "[PLAY] ✅ Movimento EXECUTADO: ${fromPiece.type} ↔ ${toPiece.type}",
+      PetalPiece? createdBomb1;
+      PetalPiece? createdBomb2;
+
+      // 3. Verifica se deve criar bombas ANTES de processar a remoção
+      if (matchesAtDestination.length >= 5) {
+        // Cria uma bomba na posição da peça com a qual o jogador interagiu
+        createdBomb1 = bombHandler.createBombFromMatch(
+          matchesAtDestination,
+          toIndex,
         );
-        print("[PLAY]    Matches encontrados: ${allFoundPieces.length} peças");
-        print("[PLAY]    Movimentos restantes: ${movesLeft.value}");
+        bombCreated = true;
       }
+      if (matchesAtOrigin.length >= 5) {
+        // Cria uma bomba na posição da peça que foi trocada
+        createdBomb2 = bombHandler.createBombFromMatch(
+          matchesAtOrigin,
+          fromIndex,
+        );
+        bombCreated = true;
+      }
+
+      // ✅ CORREÇÃO: Remove as bombas recém-criadas do conjunto de remoção
+      if (createdBomb1 != null) {
+        allFoundPieces.remove(createdBomb1);
+      }
+      if (createdBomb2 != null) {
+        allFoundPieces.remove(createdBomb2);
+      }
+
+      // O método createBombFromMatch já remove a peça que vira bomba da lista de 'matchedPieces'
 
       actionManager
           .push(
@@ -1651,30 +1914,32 @@ class CandyGame extends FlameGame with DragCallbacks {
           )
           .push(
             FunctionAction(() {
+              // 4. Processa a remoção das peças restantes
               _processMatches(allFoundPieces);
             }),
-          );
+          ); // <--- ADICIONE ESTA LINHA
     } else {
-      // Movimento não resulta em match - reverter
+      // MOVIMENTO INVÁLIDO QUE NÃO GERA COMBINAÇÃO (reverter)
       if (kDebugMode) {
         print("[PLAY] ❌ Movimento REVERTIDO: não resulta em match");
       }
-
-      final temp = pieces[fromIndex];
+      // Reverte a troca no array
+      final tempRevert = pieces[fromIndex];
       pieces[fromIndex] = pieces[toIndex];
-      pieces[toIndex] = temp;
+      pieces[toIndex] = tempRevert;
 
+      // Animação de volta
       actionManager
           .push(
             SwapPiecesAction(
               pieceDestinations: {fromPiece: toPosition, toPiece: fromPosition},
-              durationMs: 75, // Reduzido de 100ms para 75ms (25% mais rápido)
+              durationMs: 75,
             ),
           )
           .push(
             SwapPiecesAction(
               pieceDestinations: {fromPiece: fromPosition, toPiece: toPosition},
-              durationMs: 75, // Reduzido de 100ms para 75ms (25% mais rápido)
+              durationMs: 75,
             ),
           );
     }
@@ -1740,10 +2005,15 @@ class CandyGame extends FlameGame with DragCallbacks {
 }
 
 PetalType _randomPieceType() {
-  final List<PetalType> playableTypes = List.from(PetalType.values)
-    ..remove(PetalType.empty)
-    ..remove(PetalType.wall)
-    ..remove(PetalType.caged1)
-    ..remove(PetalType.caged2);
+  // ✅ CORREÇÃO: Define uma lista explícita dos únicos tipos jogáveis.
+  // Isso garante que apenas as pétalas desejadas sejam geradas durante o jogo.
+  const List<PetalType> playableTypes = [
+    PetalType.cherry,
+    PetalType.plum,
+    PetalType.maple,
+    PetalType.lily,
+    PetalType.orchid,
+    PetalType.peony,
+  ];
   return playableTypes[Random().nextInt(playableTypes.length)];
 }

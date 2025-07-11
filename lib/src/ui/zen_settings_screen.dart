@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'game_state_manager.dart';
+import '../game/game_state_manager.dart';
 import 'smooth_page_transitions.dart';
 import 'i18n/app_localizations.dart';
 import 'i18n/language_manager.dart';

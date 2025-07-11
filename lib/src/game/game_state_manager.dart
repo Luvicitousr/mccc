@@ -1,3 +1,8 @@
+// Em lib/src/game/game_state_manager.dart
+
+// Importe o LevelManager para acessar as definições de nível
+import 'level_manager.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -10,6 +15,9 @@ class GameStateManager extends ChangeNotifier {
   static GameStateManager get instance => _instance ??= GameStateManager._();
 
   GameStateManager._();
+
+  // ✅ 1. DECLARE A VARIÁVEL _prefs NO NÍVEL DA CLASSE
+  SharedPreferences? _prefs;
 
   // Game state
   int _currentLevel = 1;
@@ -45,6 +53,8 @@ class GameStateManager extends ChangeNotifier {
 
   /// Initialize manager by loading saved data
   Future<void> initialize() async {
+    // ✅ 2. INICIALIZE A VARIÁVEL _prefs DA CLASSE
+    _prefs = await SharedPreferences.getInstance();
     await _loadGameData();
     if (kDebugMode) {
       print("[GAME_STATE] Manager initialized");
@@ -57,8 +67,12 @@ class GameStateManager extends ChangeNotifier {
   }
 
   /// Mark a level as completed
-  Future<void> completeLevel(int level,
-      {int stars = 3, Map<String, dynamic>? stats}) async {
+  Future<void> completeLevel(
+    int level, {
+    required int score, // Agora recebe 'score'
+    required int movesUsed, // E 'movesUsed' para salvar a estatística
+    Map<String, dynamic>? stats,
+  }) async {
     if (level < 1 || level > _levelCompleted.length) {
       if (kDebugMode) {
         print("[GAME_STATE] ❌ Invalid level: $level");
@@ -68,6 +82,13 @@ class GameStateManager extends ChangeNotifier {
 
     final levelIndex = level - 1;
     final wasAlreadyCompleted = _levelCompleted[levelIndex];
+
+    // ✅ 2. CALCULE AS ESTRELAS COM BASE NA PONTUAÇÃO
+    final levelDef = LevelManager.instance.loadLevel(level);
+    int stars = 0;
+    if (score >= levelDef.starThresholds[0]) stars = 1;
+    if (score >= levelDef.starThresholds[1]) stars = 2;
+    if (score >= levelDef.starThresholds[2]) stars = 3;
 
     // Update state
     _levelCompleted[levelIndex] = true;
@@ -84,7 +105,8 @@ class GameStateManager extends ChangeNotifier {
 
     // Update statistics
     if (stats != null) {
-      _updatePlayerStats(level, stats);
+      // ✅ 3. ATUALIZE AS ESTATÍSTICAS COM A PONTUAÇÃO
+      _updatePlayerStats(level, {'score': score, 'moves_used': movesUsed});
     }
 
     // Save data
@@ -94,7 +116,9 @@ class GameStateManager extends ChangeNotifier {
     notifyListeners();
 
     if (kDebugMode) {
-      print("[GAME_STATE] ✅ Level $level completed with $stars stars");
+      print(
+        "[GAME_STATE] ✅ Level $level completed with $stars stars (Score: $score)",
+      );
       if (!wasAlreadyCompleted) {
         print("[GAME_STATE] 🎉 First completion of level $level!");
       }
@@ -179,11 +203,7 @@ class GameStateManager extends ChangeNotifier {
   }
 
   /// Update audio/haptics settings
-  Future<void> updateSettings({
-    bool? sound,
-    bool? music,
-    bool? haptics,
-  }) async {
+  Future<void> updateSettings({bool? sound, bool? music, bool? haptics}) async {
     if (sound != null) _soundEnabled = sound;
     if (music != null) _musicEnabled = music;
     if (haptics != null) _hapticsEnabled = haptics;
@@ -222,22 +242,25 @@ class GameStateManager extends ChangeNotifier {
         case 'moves_used':
           final currentBest = levelStats['best_moves'] as int?;
           final newValue = value as int;
-          levelStats['best_moves'] =
-              currentBest != null ? math.min(currentBest, newValue) : newValue;
+          levelStats['best_moves'] = currentBest != null
+              ? math.min(currentBest, newValue)
+              : newValue;
           break;
 
         case 'time_taken':
           final currentBest = levelStats['best_time'] as num?;
           final newValue = value as num;
-          levelStats['best_time'] =
-              currentBest != null ? math.min(currentBest, newValue) : newValue;
+          levelStats['best_time'] = currentBest != null
+              ? math.min(currentBest, newValue)
+              : newValue;
           break;
 
         case 'score':
           final currentBest = levelStats['best_score'] as int?;
           final newValue = value as int;
-          levelStats['best_score'] =
-              currentBest != null ? math.max(currentBest, newValue) : newValue;
+          levelStats['best_score'] = currentBest != null
+              ? math.max(currentBest, newValue)
+              : newValue;
           break;
 
         default:
@@ -253,39 +276,41 @@ class GameStateManager extends ChangeNotifier {
   /// Load saved data from SharedPreferences
   Future<void> _loadGameData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // ✅ 3. USE A VARIÁVEL _prefs DA CLASSE, NÃO CRIE UMA NOVA
+      if (_prefs == null) return;
 
       // Load current level
-      _currentLevel = prefs.getInt('current_level') ?? 1;
+      _currentLevel = _prefs!.getInt('current_level') ?? 1;
 
       // Load completed levels
-      final completedString = prefs.getString('levels_completed');
+      final completedString = _prefs!.getString('levels_completed');
       if (completedString != null) {
         final completedList = json.decode(completedString) as List;
         _levelCompleted = completedList.cast<bool>();
       }
 
       // Load stars
-      final starsString = prefs.getString('level_stars');
+      final starsString = _prefs!.getString('level_stars');
       if (starsString != null) {
         final starsList = json.decode(starsString) as List;
         _levelStars = starsList.cast<int>();
       }
 
       // Load statistics
-      final statsString = prefs.getString('player_stats');
+      final statsString = _prefs!.getString('player_stats');
       if (statsString != null) {
         _playerStats = json.decode(statsString) as Map<String, dynamic>;
       }
 
       // Load settings
-      _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-      _musicEnabled = prefs.getBool('music_enabled') ?? true;
-      _hapticsEnabled = prefs.getBool('haptics_enabled') ?? true;
+      _soundEnabled = _prefs!.getBool('sound_enabled') ?? true;
+      _musicEnabled = _prefs!.getBool('music_enabled') ?? true;
+      _hapticsEnabled = _prefs!.getBool('haptics_enabled') ?? true;
 
       // ✅ NOVO: Load bomb tutorial flags
-      _bombTutorialShown = prefs.getBool('bomb_tutorial_shown') ?? false;
-      _firstBombEncountered = prefs.getBool('first_bomb_encountered') ?? false;
+      _bombTutorialShown = _prefs!.getBool('bomb_tutorial_shown') ?? false;
+      _firstBombEncountered =
+          _prefs!.getBool('first_bomb_encountered') ?? false;
     } catch (e) {
       if (kDebugMode) {
         print("[GAME_STATE] ❌ Error loading data: $e");
@@ -296,33 +321,54 @@ class GameStateManager extends ChangeNotifier {
   /// Save data to SharedPreferences
   Future<void> _saveGameData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // ✅ 4. USE A VARIÁVEL _prefs DA CLASSE, NÃO CRIE UMA NOVA
+      if (_prefs == null) return;
 
       // Save current level
-      await prefs.setInt('current_level', _currentLevel);
+      await _prefs!.setInt('current_level', _currentLevel);
 
       // Save completed levels
-      await prefs.setString('levels_completed', json.encode(_levelCompleted));
+      await _prefs!.setString('levels_completed', json.encode(_levelCompleted));
 
       // Save stars
-      await prefs.setString('level_stars', json.encode(_levelStars));
+      await _prefs!.setString('level_stars', json.encode(_levelStars));
 
       // Save statistics
-      await prefs.setString('player_stats', json.encode(_playerStats));
+      await _prefs!.setString('player_stats', json.encode(_playerStats));
 
       // Save settings
-      await prefs.setBool('sound_enabled', _soundEnabled);
-      await prefs.setBool('music_enabled', _musicEnabled);
-      await prefs.setBool('haptics_enabled', _hapticsEnabled);
+      await _prefs!.setBool('sound_enabled', _soundEnabled);
+      await _prefs!.setBool('music_enabled', _musicEnabled);
+      await _prefs!.setBool('haptics_enabled', _hapticsEnabled);
 
       // ✅ NOVO: Save bomb tutorial flags
-      await prefs.setBool('bomb_tutorial_shown', _bombTutorialShown);
-      await prefs.setBool('first_bomb_encountered', _firstBombEncountered);
+      await _prefs!.setBool('bomb_tutorial_shown', _bombTutorialShown);
+      await _prefs!.setBool('first_bomb_encountered', _firstBombEncountered);
     } catch (e) {
       if (kDebugMode) {
         print("[GAME_STATE] ❌ Error saving data: $e");
       }
     }
+  }
+
+  // ✅ 1. ADICIONE A CHAVE PARA O OVO
+  static const String _zenEggUnlockedKey = 'zen_egg_unlocked';
+
+  /// Salva permanentemente que o ovo do Jardim Zen foi desbloqueado.
+  Future<void> unlockZenGardenEgg() async {
+    if (_prefs == null) await initialize();
+    await _prefs?.setBool(_zenEggUnlockedKey, true);
+    if (kDebugMode) {
+      print("[GameStateManager] 🥚 Ovo do Jardim Zen DESBLOQUEADO e salvo.");
+    }
+  }
+
+  // ✅ 3. ADICIONE O MÉTODO PARA VERIFICAR O DESBLOQUEIO
+  /// Verifica se o ovo do Jardim Zen já foi desbloqueado.
+  bool isZenGardenEggUnlocked() {
+    if (_prefs == null) return false;
+    // Retorna 'true' se a chave existir e for verdadeira, senão 'false'.
+    return _prefs?.getBool(_zenEggUnlockedKey) ?? false;
   }
 }
 

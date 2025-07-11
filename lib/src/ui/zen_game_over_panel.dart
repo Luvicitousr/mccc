@@ -10,7 +10,7 @@ import 'smooth_page_transitions.dart';
 /// Um painel de "Game Over" que transmite serenidade e aceitação
 /// ao invés de derrota, seguindo princípios estéticos zen japoneses.
 class ZenGameOverPanel extends StatefulWidget {
-  final dynamic game;
+  final dynamic? game;
   final VoidCallback? onRestart;
   final VoidCallback? onMenu;
 

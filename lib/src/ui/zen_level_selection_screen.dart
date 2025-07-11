@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'game_state_manager.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../game/game_state_manager.dart';
 import 'smooth_page_transitions.dart';
 import 'zen_settings_screen.dart';
 import '../game/game_launcher.dart';
 import 'i18n/app_localizations.dart'; // ✅ NOVO: Import do sistema de localização
 import 'i18n/language_manager.dart'; // ✅ NOVO: Import do gerenciador de idiomas
+import '../bloc/game_bloc.dart'; // ✅ 2. Importe o seu BLoC
+import '../ui/game_page.dart'; // ✅ 3. Importe a GamePage
 
 /// 🏮 Zen Level Selection Screen - VERSÃO CORRIGIDA COM I18N
 /// ✅ CORREÇÕES APLICADAS:
@@ -61,21 +64,20 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.0, 0.8, curve: Curves.easeOutQuart),
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0.0, 0.8, curve: Curves.easeOutQuart),
+      ),
+    );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _mainController,
+            curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
   }
 
   void _startAnimations() {
@@ -97,24 +99,42 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
     final l10n = AppLocalizations.of(context)!;
     final languageManager = context.watch<LanguageManager>();
 
-    // ✅ CORREÇÃO: Suporte a RTL
-    return Directionality(
-      textDirection:
-          languageManager.isRTL ? TextDirection.rtl : TextDirection.ltr,
-      child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: ZenGradients.gardenBackground,
-          ),
-          child: Stack(
-            children: [
-              _buildInkWashBackground(),
-              _buildFloatingParticles(),
-              _buildRippleEffects(),
-              _buildSandPatterns(),
-              _buildMainContent(l10n),
-              _buildNavigationBar(l10n),
-            ],
+    // ✅ CORREÇÃO: Adicione o BlocListener aqui.
+    return BlocListener<GameBloc, GameState>(
+      // ✅ CORREÇÃO: Adicione a condição 'listenWhen' aqui.
+      listenWhen: (previousState, currentState) {
+        // Esta condição diz ao listener para SÓ reagir se o estado anterior NÃO ERA 'GameReady'.
+        // Isso garante que ele só vai disparar a navegação ao sair da tela de seleção (que está no estado 'GameInitial'),
+        // e não quando você já está em jogo (no estado 'GameReady') e indo para o próximo nível.
+        return previousState is! GameReady && currentState is GameReady;
+      },
+      listener: (context, state) {
+        // Se o estado for 'GameReady', navegue para a tela do jogo.
+        if (state is GameReady) {
+          Navigator.of(
+            context,
+          ).push(SmoothPageTransitions.fadeTransition(const GamePage()));
+        }
+      },
+      child: Directionality(
+        textDirection: languageManager.isRTL
+            ? TextDirection.rtl
+            : TextDirection.ltr,
+        child: Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: ZenGradients.gardenBackground,
+            ),
+            child: Stack(
+              children: [
+                _buildInkWashBackground(),
+                _buildFloatingParticles(),
+                _buildRippleEffects(),
+                _buildSandPatterns(),
+                _buildMainContent(l10n),
+                _buildNavigationBar(l10n),
+              ],
+            ),
           ),
         ),
       ),
@@ -122,11 +142,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
   }
 
   Widget _buildInkWashBackground() {
-    return Positioned.fill(
-      child: CustomPaint(
-        painter: InkWashPainter(),
-      ),
-    );
+    return Positioned.fill(child: CustomPaint(painter: InkWashPainter()));
   }
 
   Widget _buildFloatingParticles() {
@@ -139,7 +155,8 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
             final screenSize = MediaQuery.of(context).size;
 
             return Positioned(
-              left: (index * screenSize.width / 12) +
+              left:
+                  (index * screenSize.width / 12) +
                   (math.sin(progress * math.pi * 2) * 30),
               top: -20 + (progress * (screenSize.height + 40)),
               child: Transform.rotate(
@@ -192,11 +209,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
   }
 
   Widget _buildSandPatterns() {
-    return Positioned.fill(
-      child: CustomPaint(
-        painter: SandPatternPainter(),
-      ),
-    );
+    return Positioned.fill(child: CustomPaint(painter: SandPatternPainter()));
   }
 
   /// ✅ CORREÇÃO: Conteúdo principal com i18n
@@ -212,9 +225,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
               child: Column(
                 children: [
                   _buildHeader(l10n),
-                  Expanded(
-                    child: _buildLevelGrid(),
-                  ),
+                  Expanded(child: _buildLevelGrid()),
                 ],
               ),
             ),
@@ -251,6 +262,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
             ),
           ),
           const SizedBox(height: 16),
+
           Container(
             width: _getResponsiveSize(120),
             height: 2,
@@ -308,7 +320,10 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
   }
 
   Widget _buildResponsiveLevelRow(
-      GameStateManager gameState, int rowIndex, int levelsPerRow) {
+    GameStateManager gameState,
+    int rowIndex,
+    int levelsPerRow,
+  ) {
     final isEvenRow = rowIndex % 2 == 0;
 
     return Container(
@@ -319,9 +334,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
           final levelNumber = rowIndex * levelsPerRow + colIndex + 1;
           if (levelNumber > 30) return const SizedBox.shrink();
 
-          return Flexible(
-            child: _buildLevelVignette(gameState, levelNumber),
-          );
+          return Flexible(child: _buildLevelVignette(gameState, levelNumber));
         }),
       ),
     );
@@ -427,7 +440,11 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
   }
 
   Widget _buildVignetteContent(
-      int levelNumber, bool isUnlocked, bool isCompleted, int stars) {
+    int levelNumber,
+    bool isUnlocked,
+    bool isCompleted,
+    int stars,
+  ) {
     final l10n = AppLocalizations.of(context)!;
 
     return Container(
@@ -452,6 +469,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
               ),
             ),
           ),
+
           if (isUnlocked) _buildStarsDisplay(stars) else _buildLockIcon(l10n),
         ],
       ),
@@ -567,11 +585,7 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
             },
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Icon(
-                icon,
-                size: 24,
-                color: ZenColors.inkBlack,
-              ),
+              child: Icon(icon, size: 24, color: ZenColors.inkBlack),
             ),
           ),
         ),
@@ -634,15 +648,15 @@ class _ZenLevelSelectionScreenState extends State<ZenLevelSelectionScreen>
     });
 
     HapticFeedback.mediumImpact();
-    GameLauncher.instance.launchLevel(context, levelNumber);
+
+    // A navegação será tratada pelo BlocListener.
+    context.read<GameBloc>().add(GameLevelSelected(levelNumber));
   }
 
   void _openSettings() {
-    Navigator.of(context).push(
-      SmoothPageTransitions.slideFromRight(
-        const ZenSettingsScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(SmoothPageTransitions.slideFromRight(const ZenSettingsScreen()));
   }
 }
 
@@ -734,10 +748,7 @@ class GardenScenePainter extends CustomPainter {
   final int levelNumber;
   final bool isUnlocked;
 
-  GardenScenePainter({
-    required this.levelNumber,
-    required this.isUnlocked,
-  });
+  GardenScenePainter({required this.levelNumber, required this.isUnlocked});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -859,45 +870,30 @@ class ZenGradients {
   static const LinearGradient springGarden = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFFE8F5E8),
-      Color(0xFFFFB7C5),
-    ],
+    colors: [Color(0xFFE8F5E8), Color(0xFFFFB7C5)],
   );
 
   static const LinearGradient summerGarden = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFF81C784),
-      Color(0xFF7CB342),
-    ],
+    colors: [Color(0xFF81C784), Color(0xFF7CB342)],
   );
 
   static const LinearGradient autumnGarden = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFFFFE082),
-      Color(0xFFFF8F00),
-    ],
+    colors: [Color(0xFFFFE082), Color(0xFFFF8F00)],
   );
 
   static const LinearGradient winterGarden = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFFE6F3FF),
-      Color(0xFFF0F8FF),
-    ],
+    colors: [Color(0xFFE6F3FF), Color(0xFFF0F8FF)],
   );
 
   static const LinearGradient lockedGarden = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFFE0E0E0),
-      Color(0xFFBDBDBD),
-    ],
+    colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
   );
 }

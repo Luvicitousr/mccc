@@ -181,7 +181,7 @@ class AppLocalizations {
       'resume': 'Continuar',
       'restart': 'Reiniciar',
       'next_level': 'Próximo Nível',
-      'continue_journey': 'Continuar Jornada',
+      'continue_journey': 'Continue a Jornada',
       'menu': 'Menu',
     },
     'en': {

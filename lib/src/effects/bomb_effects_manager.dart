@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'bomb_creation_overlay.dart';
-import 'bomb_explosion_overlay.dart';
+import '../ui/bomb_explosion_overlay.dart';
 import 'bomb_tutorial_overlay.dart';
 import 'bomb_tutorial_manager.dart';
 

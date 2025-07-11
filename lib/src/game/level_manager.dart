@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../engine/level_definition.dart';
 import '../engine/petal_piece.dart';
-import '../ui/game_state_manager.dart';
+import 'game_state_manager.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
@@ -50,6 +50,9 @@ class LevelManager {
       objectives: {
         PetalType.cherry: 10,
         PetalType.maple: 8,
+
+        // ✅ OBJETIVO ADICIONADO: Remover as 4 peças enjauladas.
+        PetalType.caged1: 4,
       },
       layout: [
         // Linha 0 (topo)
@@ -57,17 +60,28 @@ class LevelManager {
         PetalType.empty, PetalType.empty,
         // Linhas 1 a 7 - '1' indica um espaço para peça jogável aleatória
         1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 1,
+        1, 0, 2, 2, 0, 1,
+        1, 0, 2, 2, 0, 1,
+        1, 0, 0, 0, 0, 1,
         1, 1, 1, 1, 1, 1,
         1, 1, 1, 1, 1, 1,
       ],
-      title: "Primeiro Jardim",
-      description: "Combine 3 ou mais pétalas da mesma cor.",
+      title: "Primeiro Niwadama",
+      description:
+          "Liberte os ovos de Niwadama fazendo combinações ao lado deles!",
       difficulty: LevelDifficulty.easy,
-      specialFeatures: [LevelFeature.tutorial],
+
+      // ✅ 3. DEFINA AS PONTUAÇÕES PARA AS ESTRELAS
+      starThresholds: [
+        1000,
+        2500,
+        4000,
+      ], // 1 estrela: 1000, 2 estrelas: 2500, 3 estrelas: 4000
+      specialFeatures: [
+        LevelFeature.tutorial,
+        LevelFeature.cages,
+      ], // Adiciona a feature de jaulas
     );
   }
 
@@ -100,6 +114,11 @@ class LevelManager {
       title: "Pedras no Caminho",
       description: "Cuidado com as pedras! Elas não podem ser movidas.",
       difficulty: LevelDifficulty.easy,
+
+      // ✅ 3. DEFINA AS PONTUAÇÕES PARA AS ESTRELAS
+      starThresholds: [
+        1200, 2800, 4500
+      ],
       specialFeatures: [LevelFeature.walls],
     );
   }
@@ -133,6 +152,11 @@ class LevelManager {
       description:
           "Agora com quatro tipos de pétalas! Planeje seus movimentos.",
       difficulty: LevelDifficulty.medium,
+
+      // ✅ 3. DEFINA AS PONTUAÇÕES PARA AS ESTRELAS
+      starThresholds: [
+        1800, 4000, 6000
+      ],
       specialFeatures: [LevelFeature.multiColor],
     );
   }
@@ -165,6 +189,11 @@ class LevelManager {
       title: "Ovos Preciosos",
       description: "Quebre os ovos fazendo combinações ao lado deles!",
       difficulty: LevelDifficulty.medium,
+
+      // ✅ 3. DEFINA AS PONTUAÇÕES PARA AS ESTRELAS
+      starThresholds: [
+        2400, 5200, 7500
+      ], // 1 estrela: 1000, 2 estrelas: 2500, 3 estrelas: 4000
       specialFeatures: [LevelFeature.cages],
     );
   }
@@ -201,6 +230,13 @@ class LevelManager {
       description:
           "Use a bomba para limpar uma grande área! Combine 5 pétalas para criar mais.",
       difficulty: LevelDifficulty.medium,
+
+      // ✅ 3. DEFINA AS PONTUAÇÕES PARA AS ESTRELAS
+      starThresholds: [
+        3000,
+        6400,
+        9000,
+      ], // 1 estrela: 1000, 2 estrelas: 2500, 3 estrelas: 4000
       specialFeatures: [LevelFeature.bombs, LevelFeature.walls],
     );
   }
@@ -213,8 +249,14 @@ class LevelManager {
     final objectives = _generateObjectives(levelNumber, difficulty);
 
     // ✅ CORREÇÃO: O layout procedural agora também gera uma planta baixa.
-    final layout =
-        _generateProceduralLayout(size.width, size.height, levelNumber);
+    final layout = _generateProceduralLayout(
+      size.width,
+      size.height,
+      levelNumber,
+    );
+
+    // ✅ CHAMA A NOVA FUNÇÃO PARA GERAR AS METAS
+    final starThresholds = _generateStarThresholds(levelNumber, difficulty);
 
     return LevelDefinition(
       levelNumber: levelNumber,
@@ -226,6 +268,7 @@ class LevelManager {
       title: "Jardim ${_getLevelTheme(levelNumber)}",
       description: _getLevelDescription(levelNumber),
       difficulty: difficulty,
+      starThresholds: starThresholds, // ✅ PASSA AS METAS GERADAS
       specialFeatures: _getSpecialFeatures(levelNumber),
     );
   }
@@ -262,31 +305,51 @@ class LevelManager {
 
   /// 🎯 Gera objetivos do nível
   Map<PetalType, int> _generateObjectives(
-      int levelNumber, LevelDifficulty difficulty) {
+    int levelNumber,
+    LevelDifficulty difficulty,
+  ) {
     final objectives = <PetalType, int>{};
 
     // Tipos básicos sempre presentes
-    objectives[PetalType.cherry] =
-        _getObjectiveCount(levelNumber, difficulty, 1.0);
-    objectives[PetalType.maple] =
-        _getObjectiveCount(levelNumber, difficulty, 0.8);
+    objectives[PetalType.cherry] = _getObjectiveCount(
+      levelNumber,
+      difficulty,
+      1.0,
+    );
+    objectives[PetalType.maple] = _getObjectiveCount(
+      levelNumber,
+      difficulty,
+      0.8,
+    );
 
     // Adiciona mais tipos conforme o nível
     if (levelNumber >= 3) {
-      objectives[PetalType.orchid] =
-          _getObjectiveCount(levelNumber, difficulty, 0.6);
+      objectives[PetalType.orchid] = _getObjectiveCount(
+        levelNumber,
+        difficulty,
+        0.6,
+      );
     }
     if (levelNumber >= 5) {
-      objectives[PetalType.plum] =
-          _getObjectiveCount(levelNumber, difficulty, 0.5);
+      objectives[PetalType.plum] = _getObjectiveCount(
+        levelNumber,
+        difficulty,
+        0.5,
+      );
     }
     if (levelNumber >= 8) {
-      objectives[PetalType.lily] =
-          _getObjectiveCount(levelNumber, difficulty, 0.4);
+      objectives[PetalType.lily] = _getObjectiveCount(
+        levelNumber,
+        difficulty,
+        0.4,
+      );
     }
     if (levelNumber >= 12) {
-      objectives[PetalType.peony] =
-          _getObjectiveCount(levelNumber, difficulty, 0.3);
+      objectives[PetalType.peony] = _getObjectiveCount(
+        levelNumber,
+        difficulty,
+        0.3,
+      );
     }
 
     // Objetivos especiais
@@ -302,7 +365,10 @@ class LevelManager {
 
   /// 📊 Calcula quantidade de objetivo
   int _getObjectiveCount(
-      int levelNumber, LevelDifficulty difficulty, double multiplier) {
+    int levelNumber,
+    LevelDifficulty difficulty,
+    double multiplier,
+  ) {
     final baseCount = switch (difficulty) {
       LevelDifficulty.easy => 12,
       LevelDifficulty.medium => 15,
@@ -310,14 +376,46 @@ class LevelManager {
       LevelDifficulty.expert => 22,
     };
 
-    return ((baseCount * multiplier) + (levelNumber * 0.5))
-        .round()
-        .clamp(5, 30);
+    return ((baseCount * multiplier) + (levelNumber * 0.5)).round().clamp(
+      5,
+      30,
+    );
+  }
+
+  /// 🎲 Gera metas de pontuação para as estrelas baseado no nível e dificuldade
+  List<int> _generateStarThresholds(
+    int levelNumber,
+    LevelDifficulty difficulty,
+  ) {
+    // Fator base para a pontuação
+    final baseScore = 1500;
+    // Bônus por nível
+    final levelBonus = levelNumber * 150;
+    // Multiplicador de dificuldade
+    final difficultyMultiplier = switch (difficulty) {
+      LevelDifficulty.easy => 1.0,
+      LevelDifficulty.medium => 1.4,
+      LevelDifficulty.hard => 1.8,
+      LevelDifficulty.expert => 2.2,
+    };
+
+    // Calcula a pontuação para a primeira estrela
+    final oneStar = ((baseScore + levelBonus) * difficultyMultiplier).round();
+
+    // As outras estrelas são múltiplos da primeira
+    return [
+      oneStar, // 1 estrela
+      (oneStar * 2.5).round(), // 2 estrelas
+      (oneStar * 4).round(), // 3 estrelas
+    ];
   }
 
   /// 🗺️ ✅ CORREÇÃO: Gera layout procedural como uma planta baixa de inteiros.
   List<dynamic> _generateProceduralLayout(
-      int width, int height, int levelNumber) {
+    int width,
+    int height,
+    int levelNumber,
+  ) {
     final layout = <dynamic>[];
     final random = _createSeededRandom(levelNumber);
 
@@ -347,7 +445,11 @@ class LevelManager {
 
   /// 🧱 Verifica se deve adicionar obstáculo.
   bool _shouldAddObstacle(
-      int levelNumber, int row, int col, math.Random random) {
+    int levelNumber,
+    int row,
+    int col,
+    math.Random random,
+  ) {
     if (levelNumber < 2) return false;
     final obstacleChance = (levelNumber * 0.02).clamp(0.0, 0.15);
     return random.nextDouble() < obstacleChance;
@@ -378,7 +480,7 @@ class LevelManager {
       "dos Sonhos",
       "da Harmonia",
       "da Serenidade",
-      "da Sabedoria"
+      "da Sabedoria",
     ];
     return themes[(levelNumber - 1) % themes.length];
   }
@@ -480,12 +582,7 @@ class LevelStats {
 }
 
 /// 🎯 Dificuldades de nível
-enum LevelDifficulty {
-  easy,
-  medium,
-  hard,
-  expert,
-}
+enum LevelDifficulty { easy, medium, hard, expert }
 
 /// ⭐ Características especiais dos níveis
 enum LevelFeature {

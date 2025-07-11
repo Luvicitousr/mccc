@@ -14,9 +14,8 @@ class ZenBombExplosion extends Component with HasGameRef {
   final double maxRadius;
   final VoidCallback? onComplete;
 
-  late final List<ZenExplosionRing> _rings;
-  late final List<ZenPetal> _petals;
-  late final List<ZenSparkle> _sparkles;
+  // ✅ NOVO: Um contentor para todos os elementos visuais que pode ter opacidade.
+  late final PositionComponent _effectContainer;
 
   bool _isComplete = false;
   double _elapsedTime = 0.0;
@@ -43,6 +42,10 @@ class ZenBombExplosion extends Component with HasGameRef {
   Future<void> onLoad() async {
     await super.onLoad();
 
+    // Inicializa o contentor principal
+    _effectContainer = PositionComponent();
+    add(_effectContainer);
+
     // ✅ CORREÇÃO: Validação de parâmetros
     final validRadius = maxRadius.clamp(_minRadius, _maxRadius);
 
@@ -51,46 +54,38 @@ class ZenBombExplosion extends Component with HasGameRef {
   }
 
   void _initializeExplosionElements(double validRadius) {
-    _rings = [];
-    _petals = [];
-    _sparkles = [];
-
     try {
-      // ✅ CORREÇÃO: Criação segura de anéis
+      // Adiciona os anéis, pétalas e brilhos AO CONTENTOR, não ao componente principal.
       for (int i = 0; i < ringCount; i++) {
-        final ring = ZenExplosionRing(
-          center: explosionCenter,
-          maxRadius: validRadius,
-          delay: Duration(milliseconds: i * 150),
-          ringIndex: i,
+        _effectContainer.add(
+          ZenExplosionRing(
+            center: explosionCenter,
+            maxRadius: validRadius,
+            delay: Duration(milliseconds: i * 150),
+            ringIndex: i,
+          ),
         );
-        _rings.add(ring);
-        add(ring);
       }
-
-      // ✅ CORREÇÃO: Criação segura de pétalas
       for (int i = 0; i < petalCount; i++) {
         final angle = (i * 2 * math.pi) / petalCount;
-        final petal = ZenPetal(
-          startPosition: explosionCenter,
-          angle: angle,
-          maxDistance: validRadius * 1.2,
-          delay: Duration(milliseconds: 200 + (i * 50)),
+        _effectContainer.add(
+          ZenPetal(
+            startPosition: explosionCenter,
+            angle: angle,
+            maxDistance: validRadius * 1.2,
+            delay: Duration(milliseconds: 200 + (i * 50)),
+          ),
         );
-        _petals.add(petal);
-        add(petal);
       }
-
-      // ✅ CORREÇÃO: Criação segura de brilhos
       for (int i = 0; i < sparkleCount; i++) {
-        final sparkle = ZenSparkle(
-          center: explosionCenter,
-          maxRadius: validRadius * 0.8,
-          delay: Duration(milliseconds: 100 + (i * 100)),
-          sparkleIndex: i,
+        _effectContainer.add(
+          ZenSparkle(
+            center: explosionCenter,
+            maxRadius: validRadius * 0.8,
+            delay: Duration(milliseconds: 100 + (i * 100)),
+            sparkleIndex: i,
+          ),
         );
-        _sparkles.add(sparkle);
-        add(sparkle);
       }
     } catch (e) {
       print("[ZEN_EXPLOSION] Erro ao inicializar elementos: $e");
@@ -98,33 +93,23 @@ class ZenBombExplosion extends Component with HasGameRef {
   }
 
   void _startExplosionSequence() {
-    // ✅ CORREÇÃO: Flash inicial validado
+    /*/ ✅ CORREÇÃO: Flash inicial validado
     add(
       OpacityEffect.to(
         0.3,
         EffectController(duration: 0.1),
         onComplete: () {
-          add(
-            OpacityEffect.to(
-              1.0,
-              EffectController(duration: 0.2),
-            ),
-          );
+          add(OpacityEffect.to(1.0, EffectController(duration: 0.2)));
         },
       ),
-    );
+    );*/
 
-    // ✅ CORREÇÃO: Remoção segura com callback
     add(
       RemoveEffect(
         delay: explosionDuration.inMilliseconds / 1000.0,
         onComplete: () {
           _isComplete = true;
-          try {
-            onComplete?.call();
-          } catch (e) {
-            print("[ZEN_EXPLOSION] Erro no callback de conclusão: $e");
-          }
+          onComplete?.call();
         },
       ),
     );
@@ -227,8 +212,10 @@ class ZenExplosionRing extends Component {
     // ✅ CORREÇÃO: Fade out seguro
     if (_currentRadius > maxRadius * 0.5) {
       final fadeProgress =
-          ((_currentRadius - maxRadius * 0.5) / (maxRadius * 0.5))
-              .clamp(0.0, 1.0);
+          ((_currentRadius - maxRadius * 0.5) / (maxRadius * 0.5)).clamp(
+            0.0,
+            1.0,
+          );
       _opacity = (0.8 * (1.0 - fadeProgress)).clamp(0.0, 1.0);
     }
 
@@ -248,11 +235,7 @@ class ZenExplosionRing extends Component {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
 
-      canvas.drawCircle(
-        center.toOffset(),
-        _currentRadius,
-        paint,
-      );
+      canvas.drawCircle(center.toOffset(), _currentRadius, paint);
     } catch (e) {
       print("[ZEN_RING] Erro ao renderizar: $e");
     }
@@ -325,8 +308,10 @@ class ZenPetal extends Component {
     // ✅ CORREÇÃO: Fade out validado
     if (_currentDistance > maxDistance * 0.6) {
       final fadeProgress =
-          ((_currentDistance - maxDistance * 0.6) / (maxDistance * 0.4))
-              .clamp(0.0, 1.0);
+          ((_currentDistance - maxDistance * 0.6) / (maxDistance * 0.4)).clamp(
+            0.0,
+            1.0,
+          );
       _opacity = (0.6 * (1.0 - fadeProgress)).clamp(0.0, 1.0);
     }
 

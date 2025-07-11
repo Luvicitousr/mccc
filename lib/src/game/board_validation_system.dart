@@ -29,7 +29,8 @@ class BoardValidationSystem {
   bool validateInitialBoard(List<PetalPiece> pieces) {
     if (kDebugMode) {
       print(
-          "[BOARD_VALIDATION] 🛡️ Iniciando validação completa do tabuleiro inicial");
+        "[BOARD_VALIDATION] 🛡️ Iniciando validação completa do tabuleiro inicial",
+      );
     }
 
     try {
@@ -37,7 +38,8 @@ class BoardValidationSystem {
       if (_hasPreExistingMatches(pieces)) {
         if (kDebugMode) {
           print(
-              "[BOARD_VALIDATION] ❌ FALHOU: Combinações pré-existentes encontradas");
+            "[BOARD_VALIDATION] ❌ FALHOU: Combinações pré-existentes encontradas",
+          );
         }
         return false;
       }
@@ -46,14 +48,16 @@ class BoardValidationSystem {
       if (!_hasValidMovesAvailable(pieces)) {
         if (kDebugMode) {
           print(
-              "[BOARD_VALIDATION] ❌ FALHOU: Nenhum movimento válido disponível");
+            "[BOARD_VALIDATION] ❌ FALHOU: Nenhum movimento válido disponível",
+          );
         }
         return false;
       }
 
       if (kDebugMode) {
         print(
-            "[BOARD_VALIDATION] ✅ SUCESSO: Tabuleiro válido e pronto para jogar");
+          "[BOARD_VALIDATION] ✅ SUCESSO: Tabuleiro válido e pronto para jogar",
+        );
       }
 
       return true;
@@ -85,7 +89,8 @@ class BoardValidationSystem {
           if (kDebugMode) {
             final piece = _pieceAt(pieces, col, row);
             print(
-                "[BOARD_VALIDATION] ❌ Match encontrado em ($col, $row): ${piece?.type} - ${matches.length} peças");
+              "[BOARD_VALIDATION] ❌ Match encontrado em ($col, $row): ${piece?.type} - ${matches.length} peças",
+            );
           }
 
           // Retorna imediatamente se encontrar qualquer match
@@ -106,7 +111,8 @@ class BoardValidationSystem {
   bool _hasValidMovesAvailable(List<PetalPiece> pieces) {
     if (kDebugMode) {
       print(
-          "[BOARD_VALIDATION] 🎯 Verificando movimentos válidos disponíveis...");
+        "[BOARD_VALIDATION] 🎯 Verificando movimentos válidos disponíveis...",
+      );
     }
 
     int totalChecks = 0;
@@ -145,7 +151,8 @@ class BoardValidationSystem {
           if (totalChecks > maxValidationChecks) {
             if (kDebugMode) {
               print(
-                  "[BOARD_VALIDATION] ⚠️ Limite de verificações atingido: $maxValidationChecks");
+                "[BOARD_VALIDATION] ⚠️ Limite de verificações atingido: $maxValidationChecks",
+              );
             }
             break;
           }
@@ -158,14 +165,16 @@ class BoardValidationSystem {
 
               if (kDebugMode && validMovesFound <= 3) {
                 print(
-                    "[BOARD_VALIDATION] ✅ Movimento válido #$validMovesFound: ($col,$row) -> ($adjCol,$adjRow)");
+                  "[BOARD_VALIDATION] ✅ Movimento válido #$validMovesFound: ($col,$row) -> ($adjCol,$adjRow)",
+                );
               }
 
               // Se encontrou pelo menos um movimento válido, pode parar
               if (validMovesFound >= minValidMovesRequired) {
                 if (kDebugMode) {
                   print(
-                      "[BOARD_VALIDATION] ✅ Requisito mínimo de movimentos válidos atendido: $validMovesFound");
+                    "[BOARD_VALIDATION] ✅ Requisito mínimo de movimentos válidos atendido: $validMovesFound",
+                  );
                 }
                 return true;
               }
@@ -178,7 +187,8 @@ class BoardValidationSystem {
     if (kDebugMode) {
       print("[BOARD_VALIDATION] 📊 Total de verificações: $totalChecks");
       print(
-          "[BOARD_VALIDATION] 📊 Movimentos válidos encontrados: $validMovesFound");
+        "[BOARD_VALIDATION] 📊 Movimentos válidos encontrados: $validMovesFound",
+      );
     }
 
     return validMovesFound >= minValidMovesRequired;
@@ -255,7 +265,12 @@ class BoardValidationSystem {
   /// 🎮 **SIMULA MOVIMENTO E VERIFICA MATCH**
   /// Testa se um movimento específico resultaria em combinação
   bool _simulateAndCheckMatch(
-      List<PetalPiece> pieces, int fromCol, int fromRow, int toCol, int toRow) {
+    List<PetalPiece> pieces,
+    int fromCol,
+    int fromRow,
+    int toCol,
+    int toRow,
+  ) {
     final piece1 = _pieceAt(pieces, fromCol, fromRow);
     final piece2 = _pieceAt(pieces, toCol, toRow);
 
@@ -272,7 +287,8 @@ class BoardValidationSystem {
     piece2.type = originalType1;
 
     // Verifica se cria match em qualquer uma das posições
-    final hasMatch = _findMatchesAt(pieces, fromCol, fromRow).isNotEmpty ||
+    final hasMatch =
+        _findMatchesAt(pieces, fromCol, fromRow).isNotEmpty ||
         _findMatchesAt(pieces, toCol, toRow).isNotEmpty;
 
     // Restaura tipos originais
@@ -311,7 +327,12 @@ class BoardValidationSystem {
 
   /// Verifica se um movimento é válido
   bool _isValidMove(
-      List<PetalPiece> pieces, int fromCol, int fromRow, int toCol, int toRow) {
+    List<PetalPiece> pieces,
+    int fromCol,
+    int fromRow,
+    int toCol,
+    int toRow,
+  ) {
     if (!_isValidPosition(fromCol, fromRow) ||
         !_isValidPosition(toCol, toRow)) {
       return false;
@@ -361,10 +382,8 @@ class ValidBoardGenerator {
   final BoardValidationSystem validator;
   final Map<PetalType, Sprite> spriteMap; // Tipo corrigido para Sprite
 
-  ValidBoardGenerator({
-    required this.level,
-    required this.spriteMap,
-  }) : validator = BoardValidationSystem(level: level);
+  ValidBoardGenerator({required this.level, required this.spriteMap})
+    : validator = BoardValidationSystem(level: level);
 
   /// 🎲 **GERA TABULEIRO VÁLIDO**
   /// Tenta gerar um tabuleiro válido até o limite de tentativas
@@ -377,12 +396,15 @@ class ValidBoardGenerator {
       print("[BOARD_GENERATOR] 🎲 Iniciando geração de tabuleiro válido...");
     }
 
-    for (int attempt = 1;
-        attempt <= BoardValidationSystem.maxGenerationAttempts;
-        attempt++) {
+    for (
+      int attempt = 1;
+      attempt <= BoardValidationSystem.maxGenerationAttempts;
+      attempt++
+    ) {
       if (kDebugMode) {
         print(
-            "[BOARD_GENERATOR] 🔄 Tentativa #$attempt de ${BoardValidationSystem.maxGenerationAttempts}");
+          "[BOARD_GENERATOR] 🔄 Tentativa #$attempt de ${BoardValidationSystem.maxGenerationAttempts}",
+        );
       }
 
       // Gera um novo tabuleiro
@@ -392,7 +414,8 @@ class ValidBoardGenerator {
       if (validator.validateInitialBoard(pieces)) {
         if (kDebugMode) {
           print(
-              "[BOARD_GENERATOR] ✅ Tabuleiro válido gerado na tentativa #$attempt");
+            "[BOARD_GENERATOR] ✅ Tabuleiro válido gerado na tentativa #$attempt",
+          );
         }
         return pieces;
       }
@@ -404,7 +427,8 @@ class ValidBoardGenerator {
 
     if (kDebugMode) {
       print(
-          "[BOARD_GENERATOR] 🚨 FALHA: Não foi possível gerar tabuleiro válido em ${BoardValidationSystem.maxGenerationAttempts} tentativas");
+        "[BOARD_GENERATOR] 🚨 FALHA: Não foi possível gerar tabuleiro válido em ${BoardValidationSystem.maxGenerationAttempts} tentativas",
+      );
     }
 
     return null;
@@ -427,8 +451,12 @@ class ValidBoardGenerator {
           j * pieceSize + offsetY,
         );
 
-        PetalType pieceType =
-            _determinePieceType(level.layout[index], pieces, i, j);
+        PetalType pieceType = _determinePieceType(
+          level.layout[index],
+          pieces,
+          i,
+          j,
+        );
 
         pieces.add(
           PetalPiece(
@@ -447,7 +475,11 @@ class ValidBoardGenerator {
   /// 🎯 **DETERMINA TIPO DA PEÇA**
   /// Escolhe o tipo baseado no layout e evita matches iniciais
   PetalType _determinePieceType(
-      dynamic layoutValue, List<PetalPiece> pieces, int i, int j) {
+    dynamic layoutValue,
+    List<PetalPiece> pieces,
+    int i,
+    int j,
+  ) {
     // Tipos fixos baseados no layout
     if (layoutValue == 0) return PetalType.wall;
     if (layoutValue == 2) return PetalType.caged1;
@@ -463,13 +495,55 @@ class ValidBoardGenerator {
   }
 
   /// 🚫 **GERA TIPO EVITANDO MATCHES**
-  /// Escolhe um tipo de peça jogável de forma aleatória. A validação
-  /// de combinações será feita posteriormente pelo BoardValidationSystem.
+  /// Escolhe um tipo que não crie combinações de 3+
   PetalType _generatePieceTypeAvoidingMatches(
-      List<PetalPiece> pieces, int i, int j) {
+    List<PetalPiece> pieces,
+    int i,
+    int j,
+  ) {
+    const maxAttempts = 20;
     final availableTypes = _getAvailableTypes();
-    // Simplesmente retorna um tipo aleatório da lista de tipos jogáveis.
+
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      final candidateType =
+          availableTypes[math.Random().nextInt(availableTypes.length)];
+
+      if (!_wouldCreateMatch(pieces, i, j, candidateType)) {
+        return candidateType;
+      }
+    }
+
+    // Fallback: retorna tipo aleatório se não conseguir evitar match
     return availableTypes[math.Random().nextInt(availableTypes.length)];
+  }
+
+  /// 🔍 **VERIFICA SE CRIARIA MATCH**
+  /// Testa se colocar um tipo específico criaria combinação
+  bool _wouldCreateMatch(
+    List<PetalPiece> pieces,
+    int i,
+    int j,
+    PetalType candidateType,
+  ) {
+    // Verifica match horizontal (3 consecutivas)
+    if (i >= 2) {
+      final piece1 = _getPieceAt(pieces, i - 1, j);
+      final piece2 = _getPieceAt(pieces, i - 2, j);
+      if (piece1?.type == candidateType && piece2?.type == candidateType) {
+        return true;
+      }
+    }
+
+    // Verifica match vertical (3 consecutivas)
+    if (j >= 2) {
+      final piece1 = _getPieceAt(pieces, i, j - 1);
+      final piece2 = _getPieceAt(pieces, i, j - 2);
+      if (piece1?.type == candidateType && piece2?.type == candidateType) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// 🎨 **OBTÉM TIPOS DISPONÍVEIS**

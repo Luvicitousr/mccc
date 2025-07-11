@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import '../game/candy_game.dart';
-import 'game_state_manager.dart';
+import '../game/game_state_manager.dart';
 import 'smooth_page_transitions.dart';
 import 'level_one_victory_panel.dart';
 
-/// 🎋 Painel de vitória zen aprimorado com detecção automática de nível
-/// Automaticamente exibe a tela especial para o Nível 1 ou a tela padrão para outros níveis
-class ZenVictoryPanel extends StatelessWidget {
-  final dynamic game; // CandyGame
+class ZenVictoryPanel extends StatefulWidget {
+  final CandyGame game;
   final VoidCallback? onContinue;
   final VoidCallback? onMenu;
 
@@ -21,47 +19,10 @@ class ZenVictoryPanel extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // ✅ DETECÇÃO AUTOMÁTICA: Verifica se é o Nível 1
-    final isLevelOne = game.level.levelNumber == 1;
-
-    if (isLevelOne) {
-      // Exibe tela especial do Nível 1 com ovo
-      return LevelOneVictoryPanel(
-        game: game,
-        onContinue: onContinue,
-        onMenu: onMenu,
-      );
-    } else {
-      // Exibe tela padrão zen para outros níveis
-      return StandardZenVictoryPanel(
-        game: game,
-        onContinue: onContinue,
-        onMenu: onMenu,
-      );
-    }
-  }
+  State<ZenVictoryPanel> createState() => _StandardZenVictoryPanelState();
 }
 
-/// 🌸 Painel de vitória padrão para níveis 2+
-class StandardZenVictoryPanel extends StatefulWidget {
-  final dynamic game;
-  final VoidCallback? onContinue;
-  final VoidCallback? onMenu;
-
-  const StandardZenVictoryPanel({
-    super.key,
-    required this.game,
-    this.onContinue,
-    this.onMenu,
-  });
-
-  @override
-  State<StandardZenVictoryPanel> createState() =>
-      _StandardZenVictoryPanelState();
-}
-
-class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
+class _StandardZenVictoryPanelState extends State<ZenVictoryPanel>
     with TickerProviderStateMixin {
   late AnimationController _mainController;
   late AnimationController _petalsController;
@@ -98,29 +59,27 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOutQuart),
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutQuart),
+      ),
+    );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
-    ));
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
+      ),
+    );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.3, 1.0, curve: Curves.easeOutQuart),
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _mainController,
+            curve: const Interval(0.3, 1.0, curve: Curves.easeOutQuart),
+          ),
+        );
   }
 
   void _startAnimations() {
@@ -140,22 +99,20 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final currentStats =
-        _gameStateManager.getLevelStats(widget.game.level.levelNumber);
 
     return Container(
       width: size.width,
       height: size.height,
-      decoration: const BoxDecoration(
-        gradient: ZenColors.zenGradient,
-      ),
+      decoration: const BoxDecoration(gradient: ZenColors.zenGradient),
       child: Stack(
         children: [
-          _buildRippleBackground(),
-          _buildFloatingPetals(),
-          _buildBambooElements(),
-          _buildMainContent(currentStats),
-          _buildZenSandPatterns(),
+          IgnorePointer(child: _buildRippleBackground()),
+          IgnorePointer(child: _buildFloatingPetals()),
+          IgnorePointer(child: _buildBambooElements()),
+          IgnorePointer(child: _buildZenSandPatterns()),
+
+          // ✅ PASSO 2: O conteúdo principal com os botões vem por último
+          _buildMainContent(),
         ],
       ),
     );
@@ -184,7 +141,8 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
 
             return Positioned(
               left: 50.0 + (index * 40.0) % MediaQuery.of(context).size.width,
-              top: -20 +
+              top:
+                  -20 +
                   (animationValue * (MediaQuery.of(context).size.height + 40)),
               child: Transform.rotate(
                 angle: animationValue * 2 * math.pi * 0.1,
@@ -205,25 +163,19 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
   }
 
   Widget _buildBambooElements() {
-    return Positioned.fill(
-      child: CustomPaint(
-        painter: BambooPainter(),
-      ),
-    );
+    return Positioned.fill(child: CustomPaint(painter: BambooPainter()));
   }
 
   Widget _buildZenSandPatterns() {
     return Positioned.fill(
       child: Opacity(
         opacity: 0.1,
-        child: CustomPaint(
-          painter: ZenSandPainter(),
-        ),
+        child: CustomPaint(painter: ZenSandPainter()),
       ),
     );
   }
 
-  Widget _buildMainContent(Map<String, dynamic>? currentStats) {
+  Widget _buildMainContent() {
     return Center(
       child: AnimatedBuilder(
         animation: _mainController,
@@ -234,7 +186,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
               scale: _scaleAnimation,
               child: SlideTransition(
                 position: _slideAnimation,
-                child: _buildVictoryCard(currentStats),
+                child: _buildVictoryCard(),
               ),
             ),
           );
@@ -243,7 +195,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
     );
   }
 
-  Widget _buildVictoryCard(Map<String, dynamic>? currentStats) {
+  Widget _buildVictoryCard() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(32),
@@ -272,7 +224,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
           const SizedBox(height: 16),
           _buildSubtitle(),
           const SizedBox(height: 32),
-          _buildStats(currentStats),
+          _buildStats(),
           const SizedBox(height: 32),
           _buildActionButtons(),
         ],
@@ -293,11 +245,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
           ],
         ),
       ),
-      child: Icon(
-        Icons.spa,
-        size: _getResponsiveSize(40),
-        color: Colors.white,
-      ),
+      child: Icon(Icons.spa, size: _getResponsiveSize(40), color: Colors.white),
     );
   }
 
@@ -324,9 +272,14 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
     );
   }
 
-  Widget _buildStats(Map<String, dynamic>? currentStats) {
+  Widget _buildStats() {
+    // Pega os dados do jogo atual
+    final score = widget.game.currentScore.value;
     final movesUsed = widget.game.level.moves - widget.game.movesLeft.value;
-    final starsEarned = _calculateStars(movesUsed);
+
+    // ✅ Pega as estrelas salvas do GameStateManager
+    final starsEarned =
+        GameStateManager.instance.levelStars[widget.game.level.levelNumber - 1];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -342,7 +295,10 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildStatItem(
-              "Nível", "${widget.game.level.levelNumber}", Icons.layers),
+            "Nível",
+            "${widget.game.level.levelNumber}",
+            Icons.layers,
+          ),
           _buildStatItem("", "⭐" * starsEarned, null),
           _buildStatItem("Movimentos", "$movesUsed", Icons.touch_app),
         ],
@@ -354,16 +310,9 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
     return Column(
       children: [
         if (icon != null)
-          Icon(
-            icon,
-            color: ZenColors.bambooGreen,
-            size: 20,
-          )
+          Icon(icon, color: ZenColors.bambooGreen, size: 20)
         else
-          Text(
-            value,
-            style: const TextStyle(fontSize: 20),
-          ),
+          Text(value, style: const TextStyle(fontSize: 20)),
         const SizedBox(height: 4),
         Text(
           label,
@@ -387,6 +336,12 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
   }
 
   Widget _buildActionButtons() {
+    // ✅ ADICIONE ESTAS LINHAS PARA DEPURAÇÃO
+    print('[ZenVictoryPanel] Construindo botões...');
+    print(
+      '[ZenVictoryPanel] Callback onContinue é nulo? ${widget.onContinue == null}',
+    );
+    print('[ZenVictoryPanel] Callback onMenu é nulo? ${widget.onMenu == null}');
     return Row(
       children: [
         Expanded(
@@ -394,7 +349,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
             label: "Menu",
             icon: Icons.home_outlined,
             isPrimary: false,
-            onPressed: () => _handleMenuPress(),
+            onPressed: widget.onMenu,
           ),
         ),
         const SizedBox(width: 16),
@@ -404,7 +359,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
             label: "Continuar",
             icon: Icons.arrow_forward_rounded,
             isPrimary: true,
-            onPressed: () => _handleContinuePress(),
+            onPressed: widget.onContinue,
           ),
         ),
       ],
@@ -415,10 +370,11 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
     required String label,
     required IconData icon,
     required bool isPrimary,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
-    final backgroundColor =
-        isPrimary ? ZenColors.bambooGreen : Colors.transparent;
+    final backgroundColor = isPrimary
+        ? ZenColors.bambooGreen
+        : Colors.transparent;
     final textColor = isPrimary ? Colors.white : ZenColors.bambooGreen;
     final borderColor = ZenColors.bambooGreen;
 
@@ -433,10 +389,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onPressed();
-          },
+          onTap: onPressed,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -490,9 +443,7 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
         widget.game.resumeEngine();
 
         Navigator.of(context).pushReplacement(
-          SmoothPageTransitions.slideFromRight(
-            const LevelSelectScreen(),
-          ),
+          SmoothPageTransitions.slideFromRight(const LevelSelectScreen()),
         );
       }
     }
@@ -508,10 +459,9 @@ class _StandardZenVictoryPanelState extends State<StandardZenVictoryPanel>
         widget.game.overlays.remove('victoryPanel');
         widget.game.resumeEngine();
 
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/menu',
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/menu', (route) => false);
       }
     }
   }
@@ -538,7 +488,7 @@ class ZenColors {
 /// ✍️ Tipografia zen (mantida do design original)
 class ZenTypography {
   static const TextStyle heading = TextStyle(
-    fontFamily: 'NotoSansJP',
+    fontFamily: 'NotoSans',
     fontSize: 28,
     fontWeight: FontWeight.w300,
     letterSpacing: 2.0,
@@ -546,7 +496,7 @@ class ZenTypography {
   );
 
   static const TextStyle body = TextStyle(
-    fontFamily: 'NotoSansJP',
+    fontFamily: 'NotoSans',
     fontSize: 16,
     fontWeight: FontWeight.w400,
     letterSpacing: 1.0,
@@ -602,9 +552,17 @@ class BambooPainter extends CustomPainter {
     final rightPath = Path();
     rightPath.moveTo(size.width - 20, size.height);
     rightPath.quadraticBezierTo(
-        size.width - 30, size.height * 0.7, size.width - 25, size.height * 0.4);
+      size.width - 30,
+      size.height * 0.7,
+      size.width - 25,
+      size.height * 0.4,
+    );
     rightPath.quadraticBezierTo(
-        size.width - 20, size.height * 0.2, size.width - 30, 0);
+      size.width - 20,
+      size.height * 0.2,
+      size.width - 30,
+      0,
+    );
     canvas.drawPath(rightPath, paint);
   }
 
@@ -635,11 +593,7 @@ class ZenSandPainter extends CustomPainter {
       final endX = center.dx + math.cos(angle) * 150;
       final endY = center.dy + math.sin(angle) * 150;
 
-      canvas.drawLine(
-        Offset(startX, startY),
-        Offset(endX, endY),
-        paint,
-      );
+      canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
     }
   }
 

@@ -93,7 +93,11 @@ class BombActivationHandler {
       final otherPosition = pieceSlots[pieces.indexOf(otherPiece)].min;
 
       await _executeSwapAnimation(
-          bombPiece, otherPiece, bombPosition, otherPosition);
+        bombPiece,
+        otherPiece,
+        bombPosition,
+        otherPosition,
+      );
 
       // 2. Calcula área de explosão
       final bombIndex = pieces.indexOf(bombPiece);
@@ -108,10 +112,7 @@ class BombActivationHandler {
       final explosionResult = _analyzeExplosionEffects(bombCol, bombRow);
 
       // 4. Notifica explosão para efeitos visuais
-      final explosionCenter = Vector2(
-        bombPosition.x + 32,
-        bombPosition.y + 32,
-      );
+      final explosionCenter = Vector2(bombPosition.x + 32, bombPosition.y + 32);
       onBombExploded?.call(explosionCenter, 160);
 
       // 5. ✅ CORREÇÃO: Executa sequência correta de efeitos
@@ -160,8 +161,10 @@ class BombActivationHandler {
       _chainDepth++;
 
       // Processa área 5x5 ao redor da bomba atual
-      final currentAffected =
-          _getExplosionArea(currentBomb.col, currentBomb.row);
+      final currentAffected = _getExplosionArea(
+        currentBomb.col,
+        currentBomb.row,
+      );
 
       for (final piece in currentAffected) {
         if (!affectedPieces.contains(piece)) {
@@ -173,7 +176,8 @@ class BombActivationHandler {
 
           if (kDebugMode) {
             print(
-                "[BOMB_HANDLER] 📊 Peça ${piece.type} → ${effect.resultType} (removida: ${effect.willBeRemoved})");
+              "[BOMB_HANDLER] 📊 Peça ${piece.type} → ${effect.resultType} (removida: ${effect.willBeRemoved})",
+            );
           }
 
           // Verifica se é uma nova bomba para reação em cadeia
@@ -191,7 +195,8 @@ class BombActivationHandler {
 
                 if (kDebugMode) {
                   print(
-                      "[BOMB_HANDLER] 💣 Bomba em cadeia: ($newBombCol, $newBombRow)");
+                    "[BOMB_HANDLER] 💣 Bomba em cadeia: ($newBombCol, $newBombRow)",
+                  );
                 }
 
                 onChainReaction?.call(currentAffected.length);
@@ -261,7 +266,8 @@ class BombActivationHandler {
 
   /// 🎬 ✅ NOVO: Executa sequência completa de explosão
   Future<void> _executeExplosionSequence(
-      ExplosionResult explosionResult) async {
+    ExplosionResult explosionResult,
+  ) async {
     if (kDebugMode) {
       print("[BOMB_HANDLER] 🎬 Executando sequência de explosão...");
     }
@@ -294,7 +300,8 @@ class BombActivationHandler {
 
         if (kDebugMode) {
           print(
-              "[BOMB_HANDLER] 🔄 ${effect.originalType} → ${effect.resultType}");
+            "[BOMB_HANDLER] 🔄 ${effect.originalType} → ${effect.resultType}",
+          );
         }
       }
     }
@@ -325,7 +332,8 @@ class BombActivationHandler {
 
         if (kDebugMode) {
           print(
-              "[BOMB_HANDLER] 📊 Peça removida para objetivos: $originalType");
+            "[BOMB_HANDLER] 📊 Peça removida para objetivos: $originalType",
+          );
         }
       }
     }
@@ -349,7 +357,8 @@ class BombActivationHandler {
 
         if (kDebugMode) {
           print(
-              "[BOMB_HANDLER] 🎯 Objetivo $pieceType: $oldValue → $newValue (-$count)");
+            "[BOMB_HANDLER] 🎯 Objetivo $pieceType: $oldValue → $newValue (-$count)",
+          );
         }
       }
     }
@@ -363,7 +372,8 @@ class BombActivationHandler {
 
       if (kDebugMode) {
         print(
-            "[BOMB_HANDLER] 💣 Objetivo bomb: $oldValue → $newValue (bomba ativada)");
+          "[BOMB_HANDLER] 💣 Objetivo bomb: $oldValue → $newValue (bomba ativada)",
+        );
       }
     }
 
@@ -382,12 +392,16 @@ class BombActivationHandler {
     final affectedPieces = <PetalPiece>{};
     const explosionRadius = 2;
 
-    for (int row = bombRow - explosionRadius;
-        row <= bombRow + explosionRadius;
-        row++) {
-      for (int col = bombCol - explosionRadius;
-          col <= bombCol + explosionRadius;
-          col++) {
+    for (
+      int row = bombRow - explosionRadius;
+      row <= bombRow + explosionRadius;
+      row++
+    ) {
+      for (
+        int col = bombCol - explosionRadius;
+        col <= bombCol + explosionRadius;
+        col++
+      ) {
         if (col < 0 ||
             col >= levelWidth ||
             row < 0 ||
@@ -417,19 +431,19 @@ class BombActivationHandler {
 
     actionManager
         .push(
-      SwapPiecesAction(
-        pieceDestinations: {
-          bombPiece: otherPosition,
-          otherPiece: bombPosition,
-        },
-        durationMs: 150,
-      ),
-    )
+          SwapPiecesAction(
+            pieceDestinations: {
+              bombPiece: otherPosition,
+              otherPiece: bombPosition,
+            },
+            durationMs: 150,
+          ),
+        )
         .push(
-      FunctionAction(() {
-        completer.complete();
-      }),
-    );
+          FunctionAction(() {
+            completer.complete();
+          }),
+        );
 
     return completer.future;
   }
@@ -439,30 +453,29 @@ class BombActivationHandler {
     final completer = Completer<void>();
 
     actionManager
+        .push(RemovePiecesAction(piecesToRemove: affectedPieces))
         .push(
-      RemovePiecesAction(
-        piecesToRemove: affectedPieces,
-      ),
-    )
-        .push(
-      FunctionAction(() {
-        completer.complete();
-      }),
-    );
+          FunctionAction(() {
+            completer.complete();
+          }),
+        );
 
     return completer.future;
   }
 
   /// 🎯 Cria bomba a partir de uma combinação de 5+ peças
-  void createBombFromMatch(
-      Set<PetalPiece> matchedPieces, int swappedPieceIndex) {
+  PetalPiece? createBombFromMatch(
+    Set<PetalPiece> matchedPieces,
+    int swappedPieceIndex,
+  ) {
     if (matchedPieces.length < 5) {
-      return;
+      return null;
     }
 
     if (kDebugMode) {
       print(
-          "[BOMB_HANDLER] 🎯 Criando bomba a partir de combinação de ${matchedPieces.length} peças");
+        "[BOMB_HANDLER] 🎯 Criando bomba a partir de combinação de ${matchedPieces.length} peças",
+      );
     }
 
     final bombPiece = pieces[swappedPieceIndex];
@@ -470,15 +483,13 @@ class BombActivationHandler {
     matchedPieces.remove(bombPiece);
 
     final bombPosition = pieceSlots[swappedPieceIndex].min;
-    final bombCenter = Vector2(
-      bombPosition.x + 32,
-      bombPosition.y + 32,
-    );
+    final bombCenter = Vector2(bombPosition.x + 32, bombPosition.y + 32);
 
     if (onBombCreatedWithImmediateTutorial != null) {
       if (kDebugMode) {
         print(
-            "[BOMB_HANDLER] 🎓 Notificando criação de bomba com tutorial imediato");
+          "[BOMB_HANDLER] 🎓 Notificando criação de bomba com tutorial imediato",
+        );
       }
       onBombCreatedWithImmediateTutorial!(bombCenter);
     } else {
@@ -488,6 +499,9 @@ class BombActivationHandler {
     if (kDebugMode) {
       print("[BOMB_HANDLER] 💣 Bomba criada no índice $swappedPieceIndex");
     }
+
+    // Retorne a peça que foi transformada em bomba
+    return bombPiece;
   }
 
   /// 📊 Getters para estado

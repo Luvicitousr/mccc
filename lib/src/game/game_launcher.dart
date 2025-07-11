@@ -1,32 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:provider/provider.dart'; // Adicionado para acesso ao BLoC
+import 'package:provider/provider.dart';
 
 import '../ui/smooth_page_transitions.dart';
 import 'level_manager.dart';
 import 'candy_game.dart';
 import '../ui/game_page.dart';
-import '../ui/game_state_manager.dart';
+import 'game_state_manager.dart';
 import '../engine/level_definition.dart';
-import '../bloc/game_bloc.dart'; // Adicionado para despachar eventos
+import '../bloc/game_bloc.dart';
 
-/// � Lançador de Jogo - Sistema Modular (VERSÃO REATORADA)
+/// 🚀 Lançador de Jogo - Sistema Modular (VERSÃO REATORADA)
 ///
 /// ✅ MUDANÇAS APLICADAS:
-/// - Não cria mais a instância do CandyGame diretamente.
-/// - Despacha um evento para o GameBloc para carregar o nível.
-/// - Navega para a GamePage sem parâmetros.
-/// - O método de preview foi ajustado para o novo construtor.
+/// - O método launchLevel agora APENAS despacha o evento para o BLoC.
+/// - A navegação para a GamePage foi removida daqui e deve ser tratada pela UI.
 class GameLauncher {
   static GameLauncher? _instance;
   static GameLauncher get instance => _instance ??= GameLauncher._();
 
   GameLauncher._();
 
-  /// 🎮 Inicia um nível específico
-  Future<void> launchLevel(BuildContext context, int levelNumber) async {
+  /// 🎮 Prepara um nível para ser iniciado.
+  /// Este método agora apenas despacha o evento para o BLoC.
+  /// A navegação deve ser tratada pela UI em um BlocListener.
+  void launchLevel(BuildContext context, int levelNumber) {
     if (kDebugMode) {
-      print("[GAME_LAUNCHER] 🚀 Iniciando nível $levelNumber");
+      print("[GAME_LAUNCHER] 🚀 Preparando nível $levelNumber");
     }
 
     try {
@@ -37,24 +37,13 @@ class GameLauncher {
         _showLevelLockedDialog(context, levelNumber);
         return;
       }
-      
-      // ✅ CORREÇÃO: Despacha um evento para o BLoC carregar o nível.
-      // A GamePage irá ouvir o estado do BLoC e construir o jogo.
+
+      // Despacha o evento para o BLoC carregar o nível.
+      // A UI irá ouvir por uma mudança de estado para então navegar.
       context.read<GameBloc>().add(GameLevelSelected(levelNumber));
-
-      // ✅ CORREÇÃO: Navega para a GamePage sem passar o jogo como parâmetro.
-      await Navigator.of(context).push(
-        SmoothPageTransitions.zenTransition(
-          const GamePage(),
-        ),
-      );
-
-      if (kDebugMode) {
-        print("[GAME_LAUNCHER] ✅ Jogo iniciado com sucesso");
-      }
     } catch (e, stackTrace) {
       if (kDebugMode) {
-        print("[GAME_LAUNCHER] ❌ Erro ao iniciar nível $levelNumber: $e");
+        print("[GAME_LAUNCHER] ❌ Erro ao preparar nível $levelNumber: $e");
         print("[GAME_LAUNCHER] Stack trace: $stackTrace");
       }
       _showErrorDialog(context, levelNumber, e.toString());
@@ -64,23 +53,26 @@ class GameLauncher {
   /// 🎯 Cria jogo para preview (sem iniciar)
   CandyGame createGamePreview(int levelNumber) {
     final levelDefinition = LevelManager.instance.loadLevel(levelNumber);
-    
-    // ✅ CORREÇÃO: Passa uma função vazia para o onGameOver,
+
+    // Passa uma função vazia para o onGameOver,
     // já que um preview nunca chegará ao fim.
     return CandyGame(
       level: levelDefinition,
-      onGameOver: () {
-        // Callback vazio para o modo de preview.
-      },
+      onGameOver: () {}, // Necessário para satisfazer o construtor
+      onRestart: () {}, // ✅ Adicionado: callback vazio
+      onMenu: () {}, // ✅ Adicionado: callback vazio
     );
   }
 
-  // ... O restante da classe (launchNextLevel, restartLevel, etc.) continua igual ...
+  // ... O restante da classe (launchNextLevel, restartLevel, etc.) continua igual,
+  // pois eles já chamam o método launchLevel corrigido.
 
   /// 🎯 Inicia o próximo nível disponível
   Future<void> launchNextLevel(BuildContext context) async {
     final nextLevel = LevelManager.instance.getNextAvailableLevel();
-    await launchLevel(context, nextLevel);
+    // A chamada abaixo agora apenas prepara o nível. A navegação será
+    // tratada pelo BlocListener na UI.
+    launchLevel(context, nextLevel);
   }
 
   /// 🔄 Reinicia o nível atual
@@ -89,7 +81,7 @@ class GameLauncher {
       print("[GAME_LAUNCHER] 🔄 Reiniciando nível $levelNumber");
     }
     LevelManager.instance.clearCache();
-    await launchLevel(context, levelNumber);
+    launchLevel(context, levelNumber);
   }
 
   /// 🎮 Continua do último nível jogado
@@ -98,7 +90,7 @@ class GameLauncher {
     if (kDebugMode) {
       print("[GAME_LAUNCHER] ⏭️ Continuando do nível $lastLevel");
     }
-    await launchLevel(context, lastLevel);
+    launchLevel(context, lastLevel);
   }
 
   /// 🔒 Mostra diálogo de nível bloqueado
@@ -167,8 +159,6 @@ class GameLauncher {
       ),
     );
   }
-  
-  // ... O resto da classe e as extensões continuam aqui ...
 
   /// 📊 Obtém informações do nível
   LevelInfo getLevelInfo(int levelNumber) {
@@ -213,7 +203,8 @@ class GameLauncher {
     await gameState.completeLevel(levelNumber, stars: stars);
     if (kDebugMode) {
       print(
-          "[GAME_LAUNCHER] ⭐ DEBUG: Nível $levelNumber completado com $stars estrelas");
+        "[GAME_LAUNCHER] ⭐ DEBUG: Nível $levelNumber completado com $stars estrelas",
+      );
     }
   }
 
@@ -248,8 +239,10 @@ class LevelInfo {
     if (!isCompleted) return 0;
     final bestMoves = stats!.bestMoves;
     if (bestMoves == null) return 1;
-    final targetMoves = definition.moves;
-    final efficiency = (targetMoves - bestMoves) / targetMoves;
+
+    final totalMoves = definition.moves;
+    final efficiency = (totalMoves - bestMoves) / totalMoves;
+
     if (efficiency >= 0.7) return 3;
     if (efficiency >= 0.4) return 2;
     return 1;
@@ -266,24 +259,24 @@ class LevelInfo {
 
 /// 🔧 Extensões para facilitar o uso
 extension GameLauncherContext on BuildContext {
-  /// Inicia um nível específico
-  Future<void> launchLevel(int levelNumber) async {
-    await GameLauncher.instance.launchLevel(this, levelNumber);
+  /// Prepara um nível específico para ser iniciado.
+  void launchLevel(int levelNumber) {
+    GameLauncher.instance.launchLevel(this, levelNumber);
   }
 
-  /// Inicia o próximo nível
-  Future<void> launchNextLevel() async {
-    await GameLauncher.instance.launchNextLevel(this);
+  /// Prepara o próximo nível para ser iniciado.
+  void launchNextLevel() {
+    GameLauncher.instance.launchNextLevel(this);
   }
 
-  /// Continua o jogo
-  Future<void> continueGame() async {
-    await GameLauncher.instance.continueGame(this);
+  /// Prepara o jogo para continuar.
+  void continueGame() {
+    GameLauncher.instance.continueGame(this);
   }
 
-  /// Reinicia um nível
-  Future<void> restartLevel(int levelNumber) async {
-    await GameLauncher.instance.restartLevel(this, levelNumber);
+  /// Prepara um nível para ser reiniciado.
+  void restartLevel(int levelNumber) {
+    GameLauncher.instance.restartLevel(this, levelNumber);
   }
 }
 
@@ -343,17 +336,14 @@ class LevelButton extends StatelessWidget {
                     return Icon(
                       index < levelInfo.stars ? Icons.star : Icons.star_border,
                       size: 16,
-                      color:
-                          index < levelInfo.stars ? Colors.amber : Colors.grey,
+                      color: index < levelInfo.stars
+                          ? Colors.amber
+                          : Colors.grey,
                     );
                   }),
                 ),
               ] else ...[
-                const Icon(
-                  Icons.lock,
-                  color: Colors.grey,
-                  size: 20,
-                ),
+                const Icon(Icons.lock, color: Colors.grey, size: 20),
               ],
               if (levelInfo.isUnlocked &&
                   levelInfo.featureIcons.isNotEmpty) ...[
@@ -376,4 +366,3 @@ class LevelButton extends StatelessWidget {
     );
   }
 }
-�

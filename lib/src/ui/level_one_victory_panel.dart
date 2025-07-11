@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import '../game/candy_game.dart';
-import 'game_state_manager.dart';
+import '../game/game_state_manager.dart';
 import 'smooth_page_transitions.dart';
 
 /// 🥚 Painel de vitória específico para o Nível 1 - VERSÃO CORRIGIDA PARA OVERFLOW
@@ -79,54 +79,43 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
     );
 
     // Configurar animações principais
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOutQuart),
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutQuart),
+      ),
+    );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.7,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
-    ));
+    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _mainController,
+        curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
+      ),
+    );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.4),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _mainController,
-      curve: const Interval(0.3, 1.0, curve: Curves.easeOutQuart),
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _mainController,
+            curve: const Interval(0.3, 1.0, curve: Curves.easeOutQuart),
+          ),
+        );
 
     // Animações específicas do ovo
-    _eggBounceAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _eggController,
-      curve: Curves.elasticOut,
-    ));
+    _eggBounceAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _eggController, curve: Curves.elasticOut),
+    );
 
-    _eggGlowAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _eggController,
-      curve: const Interval(0.3, 1.0, curve: Curves.easeInOut),
-    ));
+    _eggGlowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _eggController,
+        curve: const Interval(0.3, 1.0, curve: Curves.easeInOut),
+      ),
+    );
 
-    _sparkleAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _sparkleController,
-      curve: Curves.easeInOut,
-    ));
+    _sparkleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _sparkleController, curve: Curves.easeInOut),
+    );
   }
 
   void _startAnimations() {
@@ -214,8 +203,8 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
                     index % 3 == 0
                         ? Icons.local_florist
                         : index % 3 == 1
-                            ? Icons.star
-                            : Icons.auto_awesome,
+                        ? Icons.star
+                        : Icons.auto_awesome,
                     color: index % 2 == 0
                         ? const Color(0xFFFFD700)
                         : const Color(0xFFFFB7C5),
@@ -270,8 +259,10 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
 
             final centerX = screenWidth / 2;
             final centerY = screenHeight / 2;
-            final radius =
-                _getResponsiveSize(screenWidth, 150 + (progress * 100));
+            final radius = _getResponsiveSize(
+              screenWidth,
+              150 + (progress * 100),
+            );
 
             final x = centerX + math.cos(angle) * radius;
             final y = centerY + math.sin(angle) * radius;
@@ -306,7 +297,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
 
   /// ✅ CORREÇÃO PRINCIPAL: Conteúdo principal responsivo
   Widget _buildResponsiveMainContent(
-      double availableWidth, double availableHeight) {
+    double availableWidth,
+    double availableHeight,
+  ) {
     return SafeArea(
       child: Center(
         child: AnimatedBuilder(
@@ -319,7 +312,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
                 child: SlideTransition(
                   position: _slideAnimation,
                   child: _buildResponsiveVictoryCard(
-                      availableWidth, availableHeight),
+                    availableWidth,
+                    availableHeight,
+                  ),
                 ),
               ),
             );
@@ -331,7 +326,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
 
   /// ✅ CORREÇÃO: Card de vitória responsivo que previne overflow
   Widget _buildResponsiveVictoryCard(
-      double availableWidth, double availableHeight) {
+    double availableWidth,
+    double availableHeight,
+  ) {
     // Calcula margens responsivas
     final horizontalMargin = _getResponsiveMargin(availableWidth);
     final verticalMargin = _getResponsiveMargin(availableHeight);
@@ -339,7 +336,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
     return Container(
       width: availableWidth - (horizontalMargin * 2),
       height: math.min(
-          availableHeight - (verticalMargin * 2), availableHeight * 0.9),
+        availableHeight - (verticalMargin * 2),
+        availableHeight * 0.9,
+      ),
       margin: EdgeInsets.symmetric(
         horizontal: horizontalMargin,
         vertical: verticalMargin,
@@ -453,7 +452,7 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
             SizedBox(width: _getResponsiveSpacing(availableWidth, 8)),
             Flexible(
               child: Text(
-                'PRIMEIRA VITÓRIA',
+                'PARABÉNS',
                 style: TextStyle(
                   fontSize: _getResponsiveFontSize(availableWidth, 24),
                   fontWeight: FontWeight.bold,
@@ -511,9 +510,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFFD700).withOpacity(
-                      0.4 * _eggGlowAnimation.value,
-                    ),
+                    color: const Color(
+                      0xFFFFD700,
+                    ).withOpacity(0.4 * _eggGlowAnimation.value),
                     blurRadius: 30,
                     spreadRadius: 10,
                   ),
@@ -557,7 +556,8 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
               builder: (context, child) {
                 return Stack(
                   children: List.generate(6, (index) {
-                    final angle = (index * math.pi * 2 / 6) +
+                    final angle =
+                        (index * math.pi * 2 / 6) +
                         (_sparkleAnimation.value * math.pi * 2);
                     final radius = _getResponsiveSize(availableWidth, 80);
                     final x = math.cos(angle) * radius;
@@ -570,8 +570,10 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
                         child: Icon(
                           Icons.auto_awesome,
                           color: const Color(0xFFFFD700),
-                          size: _getResponsiveSize(availableWidth,
-                              16 + (_sparkleAnimation.value * 8)),
+                          size: _getResponsiveSize(
+                            availableWidth,
+                            16 + (_sparkleAnimation.value * 8),
+                          ),
                         ),
                       ),
                     );
@@ -616,7 +618,7 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
           ),
           SizedBox(height: _getResponsiveSpacing(availableWidth, 8)),
           Text(
-            'Sua primeira recompensa especial!',
+            'Sua recompensa especial!',
             style: TextStyle(
               fontSize: _getResponsiveFontSize(availableWidth, 16),
               color: const Color(0xFFFF8F00),
@@ -632,7 +634,7 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
 
   Widget _buildMotivationalSubtitle(double availableWidth) {
     return Text(
-      'Sua jornada zen começou com sabedoria.\nContinue coletando ovos especiais!',
+      'Sua jornada zen começou com sabedoria.\nContinue jogando para coletar mais ovos especiais!',
       style: TextStyle(
         fontSize: _getResponsiveFontSize(availableWidth, 16),
         color: const Color(0xFF6D4C41),
@@ -645,8 +647,19 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
   }
 
   Widget _buildFirstLevelStats(double availableWidth) {
+    // Pega os dados do jogo atual
+    final score = widget.game.currentScore.value;
     final movesUsed = widget.game.level.moves - widget.game.movesLeft.value;
-    final starsEarned = _calculateStars(movesUsed);
+
+    // ✅ Pega as estrelas salvas do GameStateManager
+    final starsEarned =
+        GameStateManager.instance.levelStars[widget.game.level.levelNumber - 1];
+
+    // ✅ 1. BUSCA AS ESTATÍSTICAS SALVAS PARA OBTER O RECORDE
+    final levelStats = GameStateManager.instance.getLevelStats(
+      widget.game.level.levelNumber,
+    );
+    final bestMoves = levelStats?['best_moves'] as int?;
 
     return Container(
       padding: EdgeInsets.all(_getResponsivePadding(availableWidth)),
@@ -661,13 +674,24 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          // ✅ 2. ATUALIZA A COLUNA DE MOVIMENTOS PARA MOSTRAR O RECORDE
           Flexible(
-            child: _buildStatItem(
-              "Movimentos",
-              "$movesUsed",
-              Icons.touch_app,
-              const Color(0xFF4CAF50),
-              availableWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mostra o recorde apenas se ele existir
+                if (bestMoves != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    "Recorde de Movimentos: $bestMoves",
+                    style: TextStyle(
+                      fontSize: _getResponsiveFontSize(availableWidth, 11),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Flexible(
@@ -693,21 +717,23 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData? icon, Color color,
-      double availableWidth) {
+  Widget _buildStatItem(
+    String label,
+    String value,
+    IconData? icon,
+    Color color,
+    double availableWidth,
+  ) {
     return Column(
       children: [
         if (icon != null)
-          Icon(
-            icon,
-            color: color,
-            size: _getResponsiveSize(availableWidth, 24),
-          )
+          Icon(icon, color: color, size: _getResponsiveSize(availableWidth, 24))
         else
           Text(
             value,
-            style:
-                TextStyle(fontSize: _getResponsiveFontSize(availableWidth, 24)),
+            style: TextStyle(
+              fontSize: _getResponsiveFontSize(availableWidth, 24),
+            ),
             overflow: TextOverflow.visible,
           ),
         SizedBox(height: _getResponsiveSpacing(availableWidth, 8)),
@@ -772,8 +798,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
     required VoidCallback onPressed,
     required double availableWidth,
   }) {
-    final backgroundColor =
-        isPrimary ? const Color(0xFFFF8F00) : Colors.transparent;
+    final backgroundColor = isPrimary
+        ? const Color(0xFFFF8F00)
+        : Colors.transparent;
     final textColor = isPrimary ? Colors.white : const Color(0xFFFF8F00);
     final borderColor = const Color(0xFFFF8F00);
 
@@ -834,16 +861,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
     );
   }
 
-  int _calculateStars(int movesUsed) {
-    final totalMoves = widget.game.level.moves;
-    final efficiency = (totalMoves - movesUsed) / totalMoves;
-
-    if (efficiency >= 0.7) return 3;
-    if (efficiency >= 0.4) return 2;
-    return 1;
-  }
-
   void _handleContinuePress() async {
+    // ✅ ADICIONE ESTA LINHA PARA SALVAR O PROGRESSO DO OVO
+    GameStateManager.instance.unlockZenGardenEgg();
     // Animação de saída especial
     await _mainController.reverse();
 
@@ -851,19 +871,19 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
       widget.onContinue!();
     } else {
       if (mounted) {
-        widget.game.overlays.remove('victoryPanel');
+        widget.game.overlays.remove('levelOneVictoryPanel');
         widget.game.resumeEngine();
 
         Navigator.of(context).pushReplacement(
-          SmoothPageTransitions.slideFromRight(
-            const LevelSelectScreen(),
-          ),
+          SmoothPageTransitions.slideFromRight(const LevelSelectScreen()),
         );
       }
     }
   }
 
   void _handleMenuPress() async {
+    // ✅ ADICIONE ESTA LINHA PARA SALVAR O PROGRESSO DO OVO
+    GameStateManager.instance.unlockZenGardenEgg();
     await _mainController.reverse();
 
     if (widget.onMenu != null) {
@@ -873,10 +893,9 @@ class _LevelOneVictoryPanelState extends State<LevelOneVictoryPanel>
         widget.game.overlays.remove('victoryPanel');
         widget.game.resumeEngine();
 
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/menu',
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/menu', (route) => false);
       }
     }
   }
@@ -904,10 +923,7 @@ class LevelSelectScreen extends StatelessWidget {
           child: Text(
             'Seleção de Níveis\n(Em desenvolvimento)',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              color: Color(0xFF6D4C41),
-            ),
+            style: TextStyle(fontSize: 18, color: Color(0xFF6D4C41)),
           ),
         ),
       ),

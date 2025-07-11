@@ -5,10 +5,12 @@ import '../engine/petal_piece.dart';
 
 class GameTopBar extends StatelessWidget {
   final CandyGame game;
+  final VoidCallback onBackButtonPressed; // ✅ 1. Adicione este parâmetro
 
   const GameTopBar({
     super.key,
     required this.game,
+    required this.onBackButtonPressed, // ✅ 2. Torne-o obrigatório
   });
 
   @override
@@ -79,10 +81,7 @@ class GameTopBar extends StatelessWidget {
       children: [
         _buildBackButton(context, availableWidth), // Passa o context
         const SizedBox(width: 12),
-        Expanded(
-          flex: 3,
-          child: _buildObjectivesRow(availableWidth),
-        ),
+        Expanded(flex: 3, child: _buildObjectivesRow(availableWidth)),
         const SizedBox(width: 12),
         _buildMovesCounter(availableWidth),
       ],
@@ -95,10 +94,7 @@ class GameTopBar extends StatelessWidget {
       children: [
         _buildBackButton(context, availableWidth), // Passa o context
         const SizedBox(width: 16),
-        Expanded(
-          flex: 4,
-          child: _buildObjectivesRow(availableWidth),
-        ),
+        Expanded(flex: 4, child: _buildObjectivesRow(availableWidth)),
         const SizedBox(width: 16),
         _buildMovesCounter(availableWidth),
         const SizedBox(width: 8),
@@ -117,10 +113,7 @@ class GameTopBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.6),
         borderRadius: BorderRadius.circular(size / 2),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -128,8 +121,9 @@ class GameTopBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(size / 2),
           onTap: () {
             HapticFeedback.selectionClick();
-            // Agora usa o 'context' que foi recebido como parâmetro
-            Navigator.of(context).pop();
+
+            // CHAMA A FUNÇÃO RECEBIDA, EM VEZ DE Navigator.pop()
+            onBackButtonPressed();
           },
           child: Icon(
             Icons.arrow_back_rounded,
@@ -154,10 +148,7 @@ class GameTopBar extends StatelessWidget {
           decoration: BoxDecoration(
             color: _getMovesColor(movesLeft).withOpacity(0.9),
             borderRadius: BorderRadius.circular(compact ? 12 : 16),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.3),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -172,8 +163,10 @@ class GameTopBar extends StatelessWidget {
                 '$movesLeft',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize:
-                      _getResponsiveFontSize(availableWidth, compact ? 14 : 16),
+                  fontSize: _getResponsiveFontSize(
+                    availableWidth,
+                    compact ? 14 : 16,
+                  ),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -230,7 +223,9 @@ class GameTopBar extends StatelessWidget {
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveFontSize(
-                          availableWidth, compact ? 10 : 12),
+                        availableWidth,
+                        compact ? 10 : 12,
+                      ),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -243,8 +238,12 @@ class GameTopBar extends StatelessWidget {
   }
 
   /// 🎯 Item de objetivo individual
-  Widget _buildObjectiveItem(PetalType type, int count, double availableWidth,
-      {bool compact = false}) {
+  Widget _buildObjectiveItem(
+    PetalType type,
+    int count,
+    double availableWidth, {
+    bool compact = false,
+  }) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 6 : 8,
@@ -253,10 +252,7 @@ class GameTopBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: _getObjectiveColor(type).withOpacity(0.8),
         borderRadius: BorderRadius.circular(compact ? 8 : 12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -267,8 +263,10 @@ class GameTopBar extends StatelessWidget {
             '$count',
             style: TextStyle(
               color: Colors.white,
-              fontSize:
-                  _getResponsiveFontSize(availableWidth, compact ? 11 : 13),
+              fontSize: _getResponsiveFontSize(
+                availableWidth,
+                compact ? 11 : 13,
+              ),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -278,18 +276,18 @@ class GameTopBar extends StatelessWidget {
   }
 
   /// 🌸 Ícone da pétala
-  Widget _buildPetalIcon(PetalType type, double availableWidth,
-      {bool compact = false}) {
+  Widget _buildPetalIcon(
+    PetalType type,
+    double availableWidth, {
+    bool compact = false,
+  }) {
     return Container(
       width: compact ? 16 : 20,
       height: compact ? 16 : 20,
       decoration: BoxDecoration(
         color: _getPetalColor(type),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withOpacity(0.5),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
       ),
       child: Icon(
         _getPetalIcon(type),
@@ -309,10 +307,7 @@ class GameTopBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.6),
         borderRadius: BorderRadius.circular(size / 2),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -484,10 +479,9 @@ class GameTopBar extends StatelessWidget {
               title: const Text('Menu Principal'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/menu',
-                  (route) => false,
-                );
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/menu', (route) => false);
               },
             ),
           ],

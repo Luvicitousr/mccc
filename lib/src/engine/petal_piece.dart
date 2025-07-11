@@ -15,6 +15,9 @@ enum PetalType {
   wall,
   caged2,
   caged1,
+  bedrock, // ✅ ADICIONADO
+  weed, // ✅ ADICIONADO (para a próxima funcionalidade)
+  bomb, // ✅ ADICIONADO
 }
 
 class PetalPiece extends SpriteComponent {

@@ -12,41 +12,58 @@ import 'bomb_tutorial_overlay.dart';
 /// 5. Persistir flag entre sessões do app
 /// 6. Resetar apenas se app for desinstalado
 class BombTutorialManager {
-  static const String _tutorialShownKey = 'bomb_tutorial_shown';
-  static const String _firstBombEncounteredKey = 'first_bomb_encountered';
 
-  static BombTutorialManager? _instance;
-  static BombTutorialManager get instance =>
-      _instance ??= BombTutorialManager._();
+  // A única chave que precisamos para controlar o tutorial.
+  static const String _tutorialShownKey = 'bomb_tutorial_has_been_shown';
 
-  BombTutorialManager._();
+  // Padrão Singleton para garantir uma única instância.
+  BombTutorialManager._privateConstructor();
+  static final BombTutorialManager instance = BombTutorialManager._privateConstructor();
 
   SharedPreferences? _prefs;
-  bool _isInitialized = false;
 
-  /// 🚀 Inicializa o gerenciador carregando preferências
+  // 1. Método de inicialização. Deve ser chamado no main.dart.
   Future<void> initialize() async {
-    if (_isInitialized) return;
-
-    try {
-      _prefs = await SharedPreferences.getInstance();
-      _isInitialized = true;
-
-      if (kDebugMode) {
-        final tutorialShown = await hasTutorialBeenShown();
-        final bombEncountered = await hasFirstBombBeenEncountered();
-        print("[BOMB_TUTORIAL] Manager inicializado:");
-        print("[BOMB_TUTORIAL]   - Tutorial mostrado: $tutorialShown");
-        print(
-            "[BOMB_TUTORIAL]   - Primeira bomba encontrada: $bombEncountered");
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print("[BOMB_TUTORIAL] Erro ao inicializar: $e");
-      }
-      _isInitialized = false;
+    _prefs = await SharedPreferences.getInstance();
+    if (kDebugMode) {
+      final hasBeenShown = _prefs?.getBool(_tutorialShownKey) ?? false;
+      print("[BombTutorialManager] Inicializado. Tutorial já foi mostrado? $hasBeenShown");
     }
   }
+
+  // 2. Um único método para verificar se o tutorial deve ser exibido.
+  // Retorna 'true' se o tutorial nunca foi mostrado antes.
+  bool shouldShowTutorial() {
+    if (_prefs == null) {
+      if (kDebugMode) {
+        print("[BombTutorialManager] SharedPreferences não inicializado. Tutorial não será mostrado.");
+      }
+      return false;
+    }
+    // A condição é simples: mostre o tutorial se a flag for 'false' ou nula.
+    return !(_prefs!.getBool(_tutorialShownKey) ?? false);
+  }
+
+  // 3. Um único método para marcar o tutorial como visto permanentemente.
+  Future<void> markTutorialAsShown() async {
+    if (_prefs == null) return;
+
+    await _prefs!.setBool(_tutorialShownKey, true);
+    if (kDebugMode) {
+      print("[BombTutorialManager] ✅ Tutorial marcado como visto permanentemente.");
+    }
+  }
+
+  // 4. (Opcional) Função de debug para resetar a flag durante os testes.
+  Future<void> resetForDebug() async {
+    if (kDebugMode && _prefs != null) {
+      await _prefs!.remove(_tutorialShownKey);
+      print("[BombTutorialManager] 🔄 Flag do tutorial resetada para testes.");
+    }
+  }
+  static const String _firstBombEncounteredKey = 'first_bomb_encountered';
+
+  bool _isInitialized = false;
 
   /// 🔍 Verifica se o tutorial já foi mostrado
   Future<bool> hasTutorialBeenShown() async {
@@ -84,22 +101,6 @@ class BombTutorialManager {
     }
   }
 
-  /// ✅ Marca que o tutorial foi mostrado
-  Future<void> markTutorialAsShown() async {
-    await _ensureInitialized();
-
-    try {
-      await _prefs?.setBool(_tutorialShownKey, true);
-      if (kDebugMode) {
-        print("[BOMB_TUTORIAL] ✅ Tutorial marcado como mostrado");
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print("[BOMB_TUTORIAL] Erro ao marcar tutorial como mostrado: $e");
-      }
-    }
-  }
-
   /// 🎯 Marca que a primeira bomba foi encontrada
   Future<void> markFirstBombEncountered() async {
     await _ensureInitialized();
@@ -113,36 +114,6 @@ class BombTutorialManager {
       if (kDebugMode) {
         print("[BOMB_TUTORIAL] Erro ao marcar primeira bomba: $e");
       }
-    }
-  }
-
-  /// 🎓 Verifica se deve mostrar o tutorial
-  ///
-  /// Condições para mostrar:
-  /// - Tutorial ainda não foi mostrado
-  /// - É a primeira vez que o jogador encontra uma bomba
-  /// - App foi instalado recentemente
-  Future<bool> shouldShowTutorial() async {
-    try {
-      final tutorialShown = await hasTutorialBeenShown();
-      final firstBombEncountered = await hasFirstBombBeenEncountered();
-
-      final shouldShow = !tutorialShown && !firstBombEncountered;
-
-      if (kDebugMode) {
-        print("[BOMB_TUTORIAL] 🤔 Deve mostrar tutorial?");
-        print("[BOMB_TUTORIAL]   - Tutorial não mostrado: ${!tutorialShown}");
-        print(
-            "[BOMB_TUTORIAL]   - Primeira bomba não encontrada: ${!firstBombEncountered}");
-        print("[BOMB_TUTORIAL]   - Resultado: $shouldShow");
-      }
-
-      return shouldShow;
-    } catch (e) {
-      if (kDebugMode) {
-        print("[BOMB_TUTORIAL] Erro ao verificar se deve mostrar tutorial: $e");
-      }
-      return false; // Não mostra em caso de erro
     }
   }
 
